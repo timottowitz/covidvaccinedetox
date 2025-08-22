@@ -1,34 +1,96 @@
-.App-logo {
-    height: 40vmin;
-    pointer-events: none;
+/* Global enhancements for a clean, scientific aesthetic */
+:root {
+  --bg: #f7f8fb;
+  --fg: #0f172a; /* slate-900 */
+  --muted: #64748b; /* slate-500 */
+  --card: #ffffff;
+  --ring: rgba(15, 23, 42, 0.08);
+  --accent: #0ea5a5; /* teal-600-ish */
 }
 
-@media (prefers-reduced-motion: no-preference) {
-    .App-logo {
-        animation: App-logo-spin infinite 20s linear;
-    }
+html, body, #root, .App {
+  height: 100%;
 }
 
-.App-header {
-    background-color: #0f0f10;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: calc(10px + 2vmin);
-    color: white;
+body {
+  background: var(--bg);
+  color: var(--fg);
 }
 
-.App-link {
-    color: #61dafb;
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 24px;
 }
 
-@keyframes App-logo-spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
+.hero {
+  position: relative;
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(2,6,23,0.04), rgba(2,6,23,0));
+  overflow: hidden;
+  padding: 56px 40px;
+  box-shadow: 0 10px 30px -12px var(--ring);
 }
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(60% 60% at 80% 0%, rgba(14,165,165,0.15), transparent 60%),
+              radial-gradient(40% 40% at 0% 100%, rgba(2,132,199,0.12), transparent 60%);
+  pointer-events: none;
+}
+
+.hero h1 { font-size: 44px; line-height: 1.1; letter-spacing: -0.02em; margin: 0; }
+.hero p { font-size: 18px; color: var(--muted); margin-top: 12px; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.card {
+  grid-column: span 12;
+  background: var(--card);
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 8px 24px -16px var(--ring);
+}
+
+@media (min-width: 960px) {
+  .card { grid-column: span 6; }
+}
+
+.card-title { font-weight: 700; font-size: 18px; }
+.card-meta { color: var(--muted); font-size: 13px; margin-top: 6px; }
+.card-actions { display:flex; gap: 12px; margin-top: 16px; }
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #0ea5a5;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background-color .2s ease, box-shadow .2s ease;
+}
+.pill:hover { background: #0c8e8e; box-shadow: 0 6px 14px -8px rgba(14,165,165,0.5); }
+
+.tag {
+  font-size: 12px; color: #0c4a6e; background: #e0f2fe; padding: 4px 10px; border-radius: 999px; margin-right: 8px;
+}
+
+.section-title { font-size: 20px; font-weight: 700; margin: 12px 0 8px; }
+
+.shop-embed { background: var(--card); border: 1px solid #e2e8f0; border-radius: 16px; padding: 12px; }
+
+.nav {
+  display: flex; gap: 12px; margin-top: 20px;
+}
+
+.fade-in { opacity: 0; transform: translateY(8px); animation: in .5s ease forwards; }
+@keyframes in { to { opacity: 1; transform: translateY(0); } }
