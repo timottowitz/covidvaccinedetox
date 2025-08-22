@@ -11,7 +11,8 @@ import { Toaster } from "./components/ui/toaster";
 import { toast } from "./hooks/use-toast";
 import { Calendar } from "./components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover";
-import { CalendarIcon, ShoppingCart, Filter, ExternalLink } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "./components/ui/dialog";
+import { CalendarIcon, ShoppingCart, Filter, ExternalLink, FileText, Video, AudioLines, Download } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -32,6 +33,7 @@ function Header() {
             <div className="nav" style={{marginTop:16}}>
               <Link to="/"><button className="pill">Home</button></Link>
               <Link to="/research" data-testid="nav-research"><button className="pill" style={{background:'#0ea5a5'}}>Research</button></Link>
+              <Link to="/resources" data-testid="nav-resources"><button className="pill" style={{background:'#10b981'}}>Resources</button></Link>
               <Link to="/shop" data-testid="nav-shop"><button className="pill" style={{background:'#0284c7'}}>Shop</button></Link>
             </div>
           </div>
@@ -167,10 +169,100 @@ function Research(){
   )
 }
 
+function ResourceIcon({kind}){
+  if(kind === 'pdf') return <FileText size={16} />
+  if(kind === 'video') return <Video size={16} />
+  if(kind === 'audio') return <AudioLines size={16} />
+  return <FileText size={16} />
+}
+
+function ResourceCard({r}){
+  return (
+    <Card className="card fade-in">
+      <CardHeader>
+        <CardTitle className="card-title" style={{display:'flex',gap:8,alignItems:'center'}}>
+          <ResourceIcon kind={r.kind} /> {r.title}
+        </CardTitle>
+        <div className="card-meta">{r.ext?.toUpperCase()} • {new Date(r.uploaded_at).toLocaleDateString()}</div>
+      </CardHeader>
+      <CardContent>
+        <p>{r.description}</p>
+        <div style={{marginTop:12}}>
+          {(r.tags||[]).map(t => <span key={t} className="tag">{t}</span>)}
+        </div>
+        <div className="card-actions">
+          <Dialog>
+            <DialogTrigger asChild>
+              <button className="pill"><EyeIcon /> Preview</button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{r.title}</DialogTitle>
+              </DialogHeader>
+              <div style={{height:420}}>
+                {r.kind === 'pdf' && (
+                  <iframe title="pdf" src={r.url} style={{border:'1px solid #e2e8f0', width:'100%', height:'100%', borderRadius:12}} />
+                )}
+                {r.kind === 'video' && (
+                  <video controls style={{width:'100%', height:'100%', objectFit:'cover', borderRadius:12}} src={r.url} />
+                )}
+                {r.kind === 'audio' && (
+                  <audio controls style={{width:'100%'}} src={r.url} />
+                )}
+              </div>
+              <div style={{display:'flex',gap:12,marginTop:12}}>
+                <a className="pill" href={r.url} target="_blank" rel="noreferrer"><Download size={16} style={{marginRight:8}}/>Download</a>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function EyeIcon(){
+  return <ExternalLink size={16} style={{marginRight:8}}/>;
+}
+
+function Resources(){
+  const api = useApi();
+  const [items, setItems] = useState([]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tag = searchParams.get('tag') || '';
+
+  useEffect(() => { (async () => {
+    try {
+      const {data} = await api.get(`/resources${tag ? `?tag=${encodeURIComponent(tag)}`: ''}`);
+      setItems(data);
+    } catch (e) {
+      toast({title:'Load failed', description:'Could not load resources'});
+    }
+  })(); }, [tag]);
+
+  return (
+    <>
+      <Header />
+      <div className="container">
+        <div className="grid">
+          <Card className="card" style={{gridColumn:'span 12'}}>
+            <CardContent>
+              <div style={{display:'flex', gap:12, alignItems:'center', flexWrap:'wrap'}}>
+                <Input placeholder="Filter by tag (e.g., spike protein)" value={tag} onChange={e => setSearchParams({tag: e.target.value})} style={{maxWidth:280}} />
+              </div>
+            </CardContent>
+          </Card>
+          {items.map(r => <ResourceCard key={r.id} r={r} />)}
+        </div>
+      </div>
+      <Toaster />
+    </>
+  )
+}
+
 function Shop(){
   const [shopError, setShopError] = useState(false);
   useEffect(() => {
-    // Prefer non-module script to avoid CORS issues with dynamic ESM import
     const s = document.createElement('script');
     s.src = 'https://cdn.shoprocket.io/js/widget.js';
     s.async = true;
@@ -255,6 +347,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/research" element={<Research />} />
+          <Route path="/resources" element={<Resources />} />
           <Route path="/shop" element={<Shop />} />
         </Routes>
       </BrowserRouter>

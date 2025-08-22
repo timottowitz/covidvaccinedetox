@@ -30,7 +30,6 @@ def prepare_for_mongo(data: dict) -> dict:
     d = dict(data)
     for k, v in list(d.items()):
         if isinstance(v, datetime):
-            # store as ISO string
             d[k] = v.astimezone(timezone.utc).isoformat()
         elif isinstance(v, date):
             d[k] = v.isoformat()
@@ -43,12 +42,9 @@ def parse_from_mongo(item: dict) -> dict:
     if not item:
         return {}
     d = dict(item)
-    # ignore ObjectId if present
     d.pop('_id', None)
-    # parse dates if string
     for k, v in list(d.items()):
         if isinstance(v, str):
-            # attempt to parse ISO datetimes
             if 'T' in v and ':' in v:
                 try:
                     d[k] = datetime.fromisoformat(v)
@@ -95,6 +91,17 @@ class ResearchArticle(BaseModel):
     tags: List[str] = []
     citation_count: int = 0
 
+class ResourceItem(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    title: str
+    filename: Optional[str] = None
+    ext: Optional[str] = None
+    url: str
+    kind: str  # 'pdf' | 'video' | 'audio' | 'json'
+    tags: List[str] = []
+    description: Optional[str] = None
+    uploaded_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 # -------------------------------------------------
 # Seed Data (for MVP demo)
 # -------------------------------------------------
@@ -108,6 +115,7 @@ async def ensure_seed():
         ]
         sample_feed = [prepare_for_mongo(it) for it in sample_feed]
         await db.feed.insert_many(sample_feed)
+
     articles_count = await db.articles.count_documents({})
     if articles_count == 0:
         sample_articles = [
@@ -136,6 +144,40 @@ async def ensure_seed():
         ]
         sample_articles = [prepare_for_mongo(it) for it in sample_articles]
         await db.articles.insert_many(sample_articles)
+
+    resources_count = await db.resources.count_documents({})
+    if resources_count == 0:
+        sample_resources = [
+            ResourceItem(
+                title='Spike-Protein-Toxicity.pdf',
+                filename='Spike-Protein-Toxicity.pdf',
+                ext='pdf',
+                url='https://arxiv.org/pdf/1706.03762.pdf',
+                kind='pdf',
+                tags=['spike protein','mechanisms'],
+                description='Reference PDF preview for demo.'
+            ).model_dump(),
+            ResourceItem(
+                title='Bifidobacterium-Decline-clip.mp4',
+                filename='bifidobacterium-decrease.mp4',
+                ext='mp4',
+                url='https://samplelib.com/lib/preview/mp4/sample-5s.mp4',
+                kind='video',
+                tags=['gut','bifidobacterium','dysbiosis'],
+                description='Short sample video clip for demo.'
+            ).model_dump(),
+            ResourceItem(
+                title='Lecture-excerpt.m4a',
+                filename='lecture-excerpt.m4a',
+                ext='m4a',
+                url='https://samplelib.com/lib/preview/mp3/sample-3s.mp3',
+                kind='audio',
+                tags=['podcast','lecture'],
+                description='Short sample audio for demo.'
+            ).model_dump(),
+        ]
+        sample_resources = [prepare_for_mongo(it) for it in sample_resources]
+        await db.resources.insert_many(sample_resources)
 
 # -------------------------------------------------
 # Routes
@@ -178,6 +220,13 @@ async def get_research(tag: Optional[str] = Query(default=None), sort_by: str = 
     sort_dir = -1
     items = await db.articles.find(q).sort(sort_field, sort_dir).to_list(100)
     return [ResearchArticle(**parse_from_mongo(it)) for it in items]
+
+@api.get("/resources", response_model=List[ResourceItem])
+async def get_resources(tag: Optional[str] = Query(default=None)):
+    await ensure_seed()
+    q = {"tags": {"$regex": tag, "$options": "i"}} if tag else {}
+    items = await db.resources.find(q).sort("uploaded_at", -1).to_list(200)
+    return [ResourceItem(**parse_from_mongo(it)) for it in items]
 
 # bind router
 app.include_router(api)
