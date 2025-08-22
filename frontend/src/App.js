@@ -168,46 +168,46 @@ function Research(){
 }
 
 function Shop(){
+  const [shopError, setShopError] = useState(false);
   useEffect(() => {
-    // Inject ShopRocket scripts as per provided snippet
-    const script = document.createElement('script');
-    script.type = 'module';
-    script.innerHTML = `
-      async function loadShopRocket() {
-        const { ShopRocket } = await import('https://cdn.shoprocket.io/js/widget.js');
-        new ShopRocket({
-          container: '#shoprocket-products',
-          storeId: 'sr-covid-vaccine-detox-2024',
-          theme: 'modern',
-          showPrice: true,
-          showRating: true,
-          columns: 3,
-          responsiveBreakpoint: 768
-        });
+    // Prefer non-module script to avoid CORS issues with dynamic ESM import
+    const s = document.createElement('script');
+    s.src = 'https://cdn.shoprocket.io/js/widget.js';
+    s.async = true;
+    s.onload = () => {
+      try {
+        if (window.ShopRocket) {
+          // @ts-ignore
+          new window.ShopRocket({
+            container: '#shoprocket-products',
+            storeId: 'sr-covid-vaccine-detox-2024',
+            theme: 'modern',
+            showPrice: true,
+            showRating: true,
+            columns: 3,
+            responsiveBreakpoint: 768
+          });
+        }
+        if (window.ShopRocketCart) {
+          // @ts-ignore
+          new window.ShopRocketCart({
+            container: '#shoprocket-cart',
+            storeId: 'sr-covid-vaccine-detox-2024',
+            position: 'right',
+            theme: 'dark',
+            showTotal: true,
+            iconSize: 'large'
+          });
+        }
+      } catch (e) {
+        console.warn('Shop widget init failed', e);
+        setShopError(true);
       }
-      loadShopRocket();
-    `;
-    document.body.appendChild(script);
+    };
+    s.onerror = () => setShopError(true);
+    document.body.appendChild(s);
 
-    const cartScript = document.createElement('script');
-    cartScript.type = 'module';
-    cartScript.innerHTML = `
-      import { ShopRocketCart } from 'https://cdn.shoprocket.io/js/widget.js';
-      new ShopRocketCart({
-        container: '#shoprocket-cart',
-        storeId: 'sr-covid-vaccine-detox-2024',
-        position: 'right',
-        theme: 'dark',
-        showTotal: true,
-        iconSize: 'large'
-      });
-    `;
-    document.body.appendChild(cartScript);
-
-    return () => {
-      document.body.removeChild(script);
-      document.body.removeChild(cartScript);
-    }
+    return () => { try { document.body.removeChild(s); } catch(_){} };
   }, []);
 
   return (
@@ -216,8 +216,32 @@ function Shop(){
       <div className="container">
         <div className="shop-embed">
           <h2 className="section-title" style={{marginBottom:16}}>Our Products</h2>
+          {shopError && (
+            <div style={{padding:12, background:'#fff8e1', border:'1px solid #fde68a', borderRadius:12, marginBottom:12}}>
+              <strong style={{display:'block', marginBottom:6}}>Live shop widget could not load.</strong>
+              <span>Showing sample products instead. We can wire the official ShopRocket widget once CDN access is permitted.</span>
+            </div>
+          )}
           <div id="shoprocket-products" data-store-id="sr-covid-vaccine-detox-2024"></div>
           <div id="shoprocket-cart" data-store-id="sr-covid-vaccine-detox-2024"></div>
+
+          {shopError && (
+            <div className="grid" style={{marginTop:16}}>
+              {[{t:'Spike Clearance Bundle',p:79},{t:'Gut Healing Kit',p:65},{t:'IGG4 Regulation Guidebook',p:29}].map((x,idx) => (
+                <Card key={idx} className="card">
+                  <CardHeader>
+                    <CardTitle className="card-title">{x.t}</CardTitle>
+                    <div className="card-meta">${'{'}x.p{'}'}</div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="card-actions">
+                      <a className="pill" href="#" onClick={(e)=>{e.preventDefault(); toast({title:'Demo', description:'Cart available when ShopRocket loads'});}}><ShoppingCart size={16} style={{marginRight:8}}/>Add to Cart</a>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </>
