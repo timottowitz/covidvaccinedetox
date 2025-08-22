@@ -31,8 +31,8 @@ function Header() {
             <p>Curated research on spike protein, treatments, and media. Updated continuously.</p>
             <div className="nav" style={{marginTop:16}}>
               <Link to="/"><button className="pill">Home</button></Link>
-              <Link to="/research"><button className="pill" style={{background:'#0ea5a5'}}>Research</button></Link>
-              <Link to="/shop"><button className="pill" style={{background:'#0284c7'}}>Shop</button></Link>
+              <Link to="/research" data-testid="nav-research"><button className="pill" style={{background:'#0ea5a5'}}>Research</button></Link>
+              <Link to="/shop" data-testid="nav-shop"><button className="pill" style={{background:'#0284c7'}}>Shop</button></Link>
             </div>
           </div>
           <img alt="hero" src="https://images.unsplash.com/photo-1655890954753-f9ec41ce58ae" style={{width:360,borderRadius:16,objectFit:'cover',filter:'grayscale(10%) contrast(95%)'}} />
