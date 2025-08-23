@@ -1238,7 +1238,8 @@ def load_resources_from_folder_and_meta() -> List[ResourceItem]:
             tags=m.get('tags', []),
             description=m.get('description'),
             uploaded_at=uploaded_dt,
-            knowledge_url=m.get('knowledge_url')
+            knowledge_url=m.get('knowledge_url'),
+            knowledge_hash=m.get('knowledge_hash')
         )
         # lazy thumbnail field (without generating)
         base_name = item.filename or (Path(item.url).name if item.url else None)
