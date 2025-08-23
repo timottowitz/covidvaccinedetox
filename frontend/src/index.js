@@ -49,16 +49,34 @@ if (typeof window !== 'undefined') {
       }
     };
     
-    // Override React error reporting for development overlay
+    // Override React error overlay reporting
     if (window.__REACT_ERROR_OVERLAY_GLOBAL_HOOK__) {
-      const originalCaptureConsoleMessages = window.__REACT_ERROR_OVERLAY_GLOBAL_HOOK__.onUnhandledError;
+      const originalOnUnhandledError = window.__REACT_ERROR_OVERLAY_GLOBAL_HOOK__.onUnhandledError;
+      const originalOnUnhandledRejection = window.__REACT_ERROR_OVERLAY_GLOBAL_HOOK__.onUnhandledRejection;
+      
       window.__REACT_ERROR_OVERLAY_GLOBAL_HOOK__.onUnhandledError = (error) => {
         const msg = String(error && error.message || '').toLowerCase();
         if (!isNoise(msg)) {
-          originalCaptureConsoleMessages && originalCaptureConsoleMessages(error);
+          originalOnUnhandledError && originalOnUnhandledError(error);
+        }
+      };
+      
+      window.__REACT_ERROR_OVERLAY_GLOBAL_HOOK__.onUnhandledRejection = (promise, error) => {
+        const msg = String(error && error.message || '').toLowerCase();
+        if (!isNoise(msg)) {
+          originalOnUnhandledRejection && originalOnUnhandledRejection(promise, error);
         }
       };
     }
+    
+    // Additional global error suppression for aggressive extension blocking
+    const originalOnError = window.onerror;
+    window.onerror = (message, source, lineno, colno, error) => {
+      if (isNoise(message) || (source && isNoise(source))) {
+        return true; // Prevent default error handling
+      }
+      return originalOnError ? originalOnError(message, source, lineno, colno, error) : false;
+    };
   }
 }
 
