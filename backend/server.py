@@ -909,7 +909,7 @@ async def upload_resource(
     title: Optional[str] = Form(default=None),
     tags: Optional[str] = Form(default=None),
     description: Optional[str] = Form(default=None),
-    background_tasks: Optional[BackgroundTasks] = None
+    background_tasks: BackgroundTasks = BackgroundTasks()
 ):
     try:
         fname = Path(file.filename).name
