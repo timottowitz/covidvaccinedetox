@@ -7,7 +7,10 @@ Tests all endpoints defined in the FastAPI backend
 import requests
 import sys
 import json
+import time
+import os
 from datetime import datetime
+from pathlib import Path
 
 class BackendAPITester:
     def __init__(self, base_url="https://vaccine-education.preview.emergentagent.com"):
