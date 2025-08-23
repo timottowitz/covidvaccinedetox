@@ -4,7 +4,7 @@ type: research_article
 date: 2024-01-15
 tags: [spike-protein, covid-19, mechanisms]
 summary: "Comprehensive analysis of spike protein interactions and cellular effects"
-resource_id: 183a8398-2080-4922-9ede-2ff137c6cb22
+resource_id: 935d4b0e-6a5e-4f17-aca8-4229061c596a
 ---
 
 ## Key Points
