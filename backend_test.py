@@ -749,8 +749,8 @@ startxref
 def main():
     """Main test runner"""
     tester = BackendAPITester()
-    # Run thumbnail-specific tests as requested in review
-    success = tester.run_thumbnail_tests()
+    # Run async upload system tests as requested in review
+    success = tester.run_async_upload_tests()
     return 0 if success else 1
 
 if __name__ == "__main__":
