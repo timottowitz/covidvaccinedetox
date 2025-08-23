@@ -16,6 +16,69 @@ import requests
 import feedparser
 
 # -------------------------------------------------
+# Text Processing Constants and Functions
+# -------------------------------------------------
+WORD_RE = re.compile(r'\b\w+\b')
+SENT_SPLIT_RE = r'[.!?]+\s+'
+STOPWORDS = {
+    'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
+    'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did',
+    'will', 'would', 'could', 'should', 'may', 'might', 'can', 'this', 'that', 'these', 'those',
+    'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them', 'my', 'your',
+    'his', 'its', 'our', 'their', 'from', 'up', 'about', 'into', 'through', 'during', 'before',
+    'after', 'above', 'below', 'between', 'among', 'all', 'any', 'both', 'each', 'few', 'more',
+    'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than',
+    'too', 'very', 'just', 'now'
+}
+
+def tokenize(text: str) -> List[str]:
+    return [w.lower() for w in WORD_RE.findall(text or '')]
+
+def sentence_split(text: str) -> List[str]:
+    return re.split(SENT_SPLIT_RE, text.strip()) if text else []
+
+def score_sentences(text: str) -> Tuple[List[Tuple[int, float]], Dict[str, float]]:
+    sentences = sentence_split(text)
+    tokens = tokenize(text)
+    freqs: Dict[str, int] = {}
+    for t in tokens:
+        if t in STOPWORDS: continue
+        freqs[t] = freqs.get(t, 0) + 1
+    if not freqs:
+        return [], {}
+    max_f = max(freqs.values()) or 1
+    weights = {w: f / max_f for w, f in freqs.items()}
+    scores: List[Tuple[int, float]] = []
+    for idx, s in enumerate(sentences):
+        stoks = tokenize(s)
+        score = sum(weights.get(t, 0.0) for t in stoks)
+        score = score / (len(stoks) + 1e-6)
+        scores.append((idx, score))
+    return scores, weights
+
+def summarize_text(text: str, max_sentences: int = 5) -> Tuple[str, List[str]]:
+    if not text:
+        return "", []
+    scores, weights = score_sentences(text)
+    if not scores:
+        return (text.split("\n")[0][:280] + ("..." if len(text) > 280 else "")), []
+    top = sorted(scores, key=lambda x: x[1], reverse=True)[:max_sentences]
+    # restore original order for readability
+    sents = sentence_split(text)
+    top_sorted = [s for i, s in sorted([(i, sents[i]) for i, _ in top], key=lambda x: x[0])]
+    summary = " ".join(top_sorted)
+    top_keywords = [w for w, _ in sorted(weights.items(), key=lambda kv: kv[1], reverse=True)[:6] if len(w) > 3]
+    key_points = [f"{w.capitalize()}" for w in top_keywords]
+    return summary, key_points
+
+def extract_keywords(q: str, top_k: int = 6) -> List[str]:
+    tokens = [t for t in tokenize(q) if t not in STOPWORDS and len(t) > 3]
+    freqs: Dict[str, int] = {}
+    for t in tokens:
+        freqs[t] = freqs.get(t, 0) + 1
+    return [w for w, _ in sorted(freqs.items(), key=lambda kv: kv[1], reverse=True)[:top_k]]
+
+# -------------------------------------------------
 # Env & DB
 # -------------------------------------------------
 ROOT_DIR = Path(__file__).parent
