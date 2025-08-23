@@ -70,7 +70,7 @@ def summarize_text(text: str, max_sentences: int = 5) -> Tuple[str, List[str]]:
     sents = sentence_split(text)
     top_sorted = [s for i, s in sorted([(i, sents[i]) for i, _ in top], key=lambda x: x[0])]
     summary = " ".join(top_sorted)
-    top_keywords = [w for w, _ in sorted(weights.items(), key=lambda kv: kv[1], reverse=True)[:6] if len(w) &gt; 3]
+    top_keywords = [w for w, _ in sorted(weights.items(), key=lambda kv: kv[1], reverse=True)[:6] if len(w) > 3]
     key_points = [f"{w.capitalize()}" for w in top_keywords]
     return summary, key_points
 
