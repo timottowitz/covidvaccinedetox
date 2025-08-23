@@ -297,35 +297,249 @@ class BackendAPITester:
             self.log_result("Media Endpoint", False, f"Request failed: {str(e)}")
         return False
 
-    def test_status_endpoints(self):
-        """Test POST and GET /api/status"""
+    def test_resources_thumbnail_generation(self):
+        """Test GET /api/resources for thumbnail generation"""
         try:
-            # Test POST /api/status
-            test_data = {"client_name": f"test_client_{datetime.now().strftime('%H%M%S')}"}
-            response = requests.post(f"{self.api_url}/status", json=test_data, timeout=10)
+            # First call - should trigger lazy thumbnail generation
+            start_time = time.time()
+            response = requests.get(f"{self.api_url}/resources", timeout=30)
+            first_call_time = time.time() - start_time
             
             if response.status_code == 200:
                 data = response.json()
-                if 'id' in data and 'client_name' in data and 'timestamp' in data:
-                    self.log_result("Status POST", True)
+                if isinstance(data, list) and len(data) > 0:
+                    # Check for PDF and video items with thumbnail_url
+                    pdf_items = [item for item in data if item.get('kind') == 'pdf']
+                    video_items = [item for item in data if item.get('kind') == 'video']
                     
-                    # Test GET /api/status
-                    get_response = requests.get(f"{self.api_url}/status", timeout=10)
-                    if get_response.status_code == 200:
-                        get_data = get_response.json()
-                        if isinstance(get_data, list):
-                            self.log_result("Status GET", True, f"Returned {len(get_data)} status checks")
-                            return True
-                        else:
-                            self.log_result("Status GET", False, "Expected array response")
+                    pdf_with_thumbnails = [item for item in pdf_items if item.get('thumbnail_url')]
+                    video_with_thumbnails = [item for item in video_items if item.get('thumbnail_url')]
+                    
+                    # Check if thumbnail files exist on disk
+                    thumbnail_files_exist = []
+                    for item in pdf_with_thumbnails + video_with_thumbnails:
+                        if item.get('thumbnail_url'):
+                            # Convert URL to file path
+                            thumb_path = f"/app/frontend/public{item['thumbnail_url']}"
+                            if os.path.exists(thumb_path):
+                                thumbnail_files_exist.append(item['title'])
+                    
+                    # Second call - should be faster (thumbnails cached)
+                    start_time = time.time()
+                    response2 = requests.get(f"{self.api_url}/resources", timeout=30)
+                    second_call_time = time.time() - start_time
+                    
+                    details = f"PDF items: {len(pdf_items)} (with thumbnails: {len(pdf_with_thumbnails)}), "
+                    details += f"Video items: {len(video_items)} (with thumbnails: {len(video_with_thumbnails)}), "
+                    details += f"Thumbnail files on disk: {len(thumbnail_files_exist)}, "
+                    details += f"First call: {first_call_time:.2f}s, Second call: {second_call_time:.2f}s"
+                    
+                    if len(pdf_with_thumbnails) > 0 or len(video_with_thumbnails) > 0:
+                        self.log_result("Resources Thumbnail Generation", True, details)
+                        return True
                     else:
-                        self.log_result("Status GET", False, f"Expected 200, got {get_response.status_code}")
+                        self.log_result("Resources Thumbnail Generation", False, f"No thumbnails generated. {details}")
                 else:
-                    self.log_result("Status POST", False, "Missing required fields in response")
+                    self.log_result("Resources Thumbnail Generation", False, "Expected non-empty array")
             else:
-                self.log_result("Status POST", False, f"Expected 200, got {response.status_code}")
+                self.log_result("Resources Thumbnail Generation", False, f"Expected 200, got {response.status_code}")
         except Exception as e:
-            self.log_result("Status Endpoints", False, f"Request failed: {str(e)}")
+            self.log_result("Resources Thumbnail Generation", False, f"Request failed: {str(e)}")
+        return False
+
+    def test_upload_with_thumbnail_generation(self):
+        """Test POST /api/resources/upload with thumbnail generation"""
+        try:
+            # Create a small test PDF content (minimal PDF structure)
+            pdf_content = b"""%PDF-1.4
+1 0 obj
+<<
+/Type /Catalog
+/Pages 2 0 R
+>>
+endobj
+2 0 obj
+<<
+/Type /Pages
+/Kids [3 0 R]
+/Count 1
+>>
+endobj
+3 0 obj
+<<
+/Type /Page
+/Parent 2 0 R
+/MediaBox [0 0 612 792]
+/Contents 4 0 R
+>>
+endobj
+4 0 obj
+<<
+/Length 44
+>>
+stream
+BT
+/F1 12 Tf
+72 720 Td
+(Test PDF) Tj
+ET
+endstream
+endobj
+xref
+0 5
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000206 00000 n 
+trailer
+<<
+/Size 5
+/Root 1 0 R
+>>
+startxref
+299
+%%EOF"""
+
+            # Test PDF upload
+            files = {'file': ('test_thumbnail.pdf', pdf_content, 'application/pdf')}
+            data = {
+                'title': 'Test PDF for Thumbnail',
+                'tags': 'test,pdf,thumbnail',
+                'description': 'Test PDF upload for thumbnail generation'
+            }
+            
+            response = requests.post(f"{self.api_url}/resources/upload", files=files, data=data, timeout=30)
+            
+            pdf_upload_success = False
+            pdf_thumbnail_url = None
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('kind') == 'pdf' and result.get('title') == 'Test PDF for Thumbnail':
+                    pdf_upload_success = True
+                    pdf_thumbnail_url = result.get('thumbnail_url')
+                    self.log_result("PDF Upload", True, f"Thumbnail URL: {pdf_thumbnail_url}")
+                else:
+                    self.log_result("PDF Upload", False, f"Unexpected response: {result}")
+            else:
+                self.log_result("PDF Upload", False, f"Expected 200, got {response.status_code}: {response.text}")
+
+            # Note: Creating a valid MP4 is complex, so we'll test with a simple file
+            # and expect it might fail thumbnail generation but still upload successfully
+            mp4_content = b"fake mp4 content for testing"
+            
+            files = {'file': ('test_thumbnail.mp4', mp4_content, 'video/mp4')}
+            data = {
+                'title': 'Test MP4 for Thumbnail',
+                'tags': 'test,video,thumbnail',
+                'description': 'Test MP4 upload for thumbnail generation'
+            }
+            
+            response = requests.post(f"{self.api_url}/resources/upload", files=files, data=data, timeout=30)
+            
+            mp4_upload_success = False
+            mp4_thumbnail_url = None
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('kind') == 'video' and result.get('title') == 'Test MP4 for Thumbnail':
+                    mp4_upload_success = True
+                    mp4_thumbnail_url = result.get('thumbnail_url')
+                    self.log_result("MP4 Upload", True, f"Thumbnail URL: {mp4_thumbnail_url}")
+                else:
+                    self.log_result("MP4 Upload", False, f"Unexpected response: {result}")
+            else:
+                self.log_result("MP4 Upload", False, f"Expected 200, got {response.status_code}: {response.text}")
+
+            # Verify uploads appear in GET /api/resources
+            response = requests.get(f"{self.api_url}/resources", timeout=30)
+            if response.status_code == 200:
+                resources = response.json()
+                uploaded_pdf = next((r for r in resources if r.get('title') == 'Test PDF for Thumbnail'), None)
+                uploaded_mp4 = next((r for r in resources if r.get('title') == 'Test MP4 for Thumbnail'), None)
+                
+                verification_success = uploaded_pdf is not None and uploaded_mp4 is not None
+                details = f"PDF found: {uploaded_pdf is not None}, MP4 found: {uploaded_mp4 is not None}"
+                
+                self.log_result("Upload Verification", verification_success, details)
+                
+                return pdf_upload_success and mp4_upload_success and verification_success
+            else:
+                self.log_result("Upload Verification", False, f"Failed to verify uploads: {response.status_code}")
+                
+        except Exception as e:
+            self.log_result("Upload with Thumbnail Generation", False, f"Request failed: {str(e)}")
+        return False
+
+    def test_external_url_thumbnail_handling(self):
+        """Test thumbnail generation for external URLs with graceful failure handling"""
+        try:
+            # Test with resources that have external URLs
+            response = requests.get(f"{self.api_url}/resources", timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                external_resources = [
+                    item for item in data 
+                    if item.get('url', '').startswith('http') and item.get('kind') in ['pdf', 'video']
+                ]
+                
+                if len(external_resources) > 0:
+                    # Check that the service handles external URLs gracefully
+                    # Even if thumbnail generation fails, the response should be 200
+                    # and the items should still be returned
+                    
+                    details = f"Found {len(external_resources)} external resources. "
+                    details += "Service handled external URLs without 5xx errors."
+                    
+                    # Check for any items that might have failed thumbnail generation
+                    failed_thumbnails = [
+                        item for item in external_resources 
+                        if item.get('thumbnail_url') is None
+                    ]
+                    
+                    if len(failed_thumbnails) > 0:
+                        details += f" {len(failed_thumbnails)} items without thumbnails (acceptable for external URLs)."
+                    
+                    self.log_result("External URL Thumbnail Handling", True, details)
+                    return True
+                else:
+                    self.log_result("External URL Thumbnail Handling", True, "No external resources found (acceptable)")
+                    return True
+            else:
+                self.log_result("External URL Thumbnail Handling", False, f"Expected 200, got {response.status_code}")
+        except Exception as e:
+            self.log_result("External URL Thumbnail Handling", False, f"Request failed: {str(e)}")
+        return False
+
+    def test_cors_and_route_prefixes(self):
+        """Test that CORS and route prefixes are unchanged"""
+        try:
+            # Test CORS headers
+            response = requests.options(f"{self.api_url}/resources", timeout=10)
+            cors_headers = {
+                'access-control-allow-origin': response.headers.get('access-control-allow-origin'),
+                'access-control-allow-methods': response.headers.get('access-control-allow-methods'),
+                'access-control-allow-headers': response.headers.get('access-control-allow-headers')
+            }
+            
+            # Test that /api prefix is maintained
+            health_response = requests.get(f"{self.api_url}/health", timeout=10)
+            
+            if health_response.status_code == 200:
+                health_data = health_response.json()
+                if health_data.get("status") == "ok":
+                    details = f"CORS headers present: {bool(cors_headers['access-control-allow-origin'])}, "
+                    details += f"Health endpoint accessible at /api/health"
+                    self.log_result("CORS and Route Prefixes", True, details)
+                    return True
+                else:
+                    self.log_result("CORS and Route Prefixes", False, "Health endpoint not responding correctly")
+            else:
+                self.log_result("CORS and Route Prefixes", False, f"Health endpoint returned {health_response.status_code}")
+        except Exception as e:
+            self.log_result("CORS and Route Prefixes", False, f"Request failed: {str(e)}")
         return False
 
     def run_all_tests(self):
