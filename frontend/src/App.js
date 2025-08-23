@@ -272,7 +272,8 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/research" element={<Research />} />
-          {/* Other routes already present in file: /resources, /media, /treatments, /shop */}
+          <Route path="/media" element={<Media />} />
+          {/* Other routes already present in file: /resources, /treatments, /shop */}
         </Routes>
       </BrowserRouter>
     </div>
