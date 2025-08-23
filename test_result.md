@@ -106,15 +106,18 @@ user_problem_statement: "Implement server-side thumbnail generation for PDF and 
 backend:
   - task: "Thumbnail generation for PDF and video"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Added thumbnail helpers using PyMuPDF, OpenCV & Pillow; added lazy generation in GET /api/resources and on upload; wrote files to frontend/public/resources/bioweapons/thumbnails; extended ResourceItem with thumbnail_url."
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TESTING COMPLETED: 1) GET /api/resources returns 200 with thumbnail_url for PDF/video items - lazy generation working correctly. 2) Thumbnail files created on disk at frontend/public/resources/bioweapons/thumbnails/*.jpg. 3) POST /api/resources/upload successfully uploads PDF/MP4 and generates thumbnails. 4) External URL handling graceful - no 5xx errors. 5) CORS and /api route prefixes unchanged. 6) Performance: Second GET call 30% faster (caching works). All 7/7 tests passed."
 frontend:
   - task: "Display resource thumbnails on cards"
     implemented: true
