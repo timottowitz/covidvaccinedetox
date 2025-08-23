@@ -6,7 +6,8 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Tuple, Any, Callable, TypedDict
+from typing import List, Optional, Dict, Tuple, Any, Callable
+from typing_extensions import TypedDict
 import uuid
 from datetime import datetime, date, time, timezone
 import json
