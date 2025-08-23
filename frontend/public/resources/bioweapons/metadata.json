@@ -67,6 +67,20 @@
       ],
       "description": "Test MP4 upload for thumbnail generation",
       "uploaded_at": "2025-08-23T01:25:59.986950+00:00"
+    },
+    {
+      "title": "Test Async PDF Upload",
+      "filename": "test_async.pdf",
+      "ext": "pdf",
+      "url": "/resources/bioweapons/test_async.pdf",
+      "kind": "pdf",
+      "tags": [
+        "test",
+        "pdf",
+        "async"
+      ],
+      "description": "Test async PDF upload workflow",
+      "uploaded_at": "2025-08-23T03:51:00.903498+00:00"
     }
   ]
 }
