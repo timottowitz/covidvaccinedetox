@@ -340,7 +340,10 @@ function Uploader({onDone}){
         if(title) fd.append('title', title);
         if(tags) fd.append('tags', tags);
         if(description) fd.append('description', description);
-        await api.post('/resources/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        const { data } = await api.post('/resources/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        if (data.knowledge_job_type) {
+          toast({title:'Knowledge processing', description:`${data.knowledge_job_type} started`});
+        }
       }
       toast({title:'Uploaded', description:`${files.length} file(s) added`});
       setFiles([]); setTitle(""); setTags(""); setDescription("");
