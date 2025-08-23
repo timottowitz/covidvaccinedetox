@@ -189,6 +189,7 @@ class ResourceItem(BaseModel):
     knowledge_url: Optional[str] = None
     knowledge_job_id: Optional[str] = None
     knowledge_job_type: Optional[str] = None
+    knowledge_hash: Optional[str] = None
 
 
 # -------------------------------------------------
