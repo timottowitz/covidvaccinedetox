@@ -920,6 +920,11 @@ async def get_resources(tag: Optional[str] = Query(default=None)):
     if tag:
         t = tag.lower()
         data = [r for r in data if any(t in (x.lower()) for x in (r.tags or []))]
+    # try to auto-attach knowledge_url by reconciling with knowledge files
+    try:
+        _knowledge_reconcile_internal()
+    except Exception:
+        pass
     return data
 
 
