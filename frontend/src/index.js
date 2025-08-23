@@ -45,6 +45,17 @@ if (typeof window !== 'undefined') {
         originalError.apply(console, args);
       }
     };
+    
+    // Override React error reporting for development overlay
+    if (window.__REACT_ERROR_OVERLAY_GLOBAL_HOOK__) {
+      const originalCaptureConsoleMessages = window.__REACT_ERROR_OVERLAY_GLOBAL_HOOK__.onUnhandledError;
+      window.__REACT_ERROR_OVERLAY_GLOBAL_HOOK__.onUnhandledError = (error) => {
+        const msg = String(error && error.message || '').toLowerCase();
+        if (!isNoise(msg)) {
+          originalCaptureConsoleMessages && originalCaptureConsoleMessages(error);
+        }
+      };
+    }
   }
 }
 
