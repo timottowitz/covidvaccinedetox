@@ -13,6 +13,7 @@ export default function KnowledgeList(){
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState(null);
   const [md, setMd] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const load = async () => {
     setLoading(true);
