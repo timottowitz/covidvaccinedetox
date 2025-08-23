@@ -928,6 +928,247 @@ def ensure_thumbnail_for_resource(res: 'ResourceItem', prefer_time_sec: float = 
         return None
 
 
+# -------------------------------------------------
+# Advanced Reconciliation System
+# -------------------------------------------------
+class ReconcileResult(TypedDict):
+    linked: List[str]
+    updated: List[str] 
+    skipped: List[str]
+    conflicts: List[str]
+
+
+def compute_content_hash(file_path: Path) -> str:
+    """Compute SHA256 hash of markdown file content (excluding frontmatter)"""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+            
+        # Split frontmatter and content
+        if content.startswith('---'):
+            parts = content.split('---', 2)
+            if len(parts) >= 3:
+                # Content after frontmatter
+                body_content = parts[2].strip()
+            else:
+                body_content = content
+        else:
+            body_content = content
+            
+        return hashlib.sha256(body_content.encode('utf-8')).hexdigest()
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"Failed to compute hash for {file_path}: {e}")
+        return ""
+
+
+def parse_knowledge_frontmatter(file_path: Path) -> Dict[str, Any]:
+    """Parse YAML frontmatter from knowledge markdown file"""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+            
+        if not content.startswith('---'):
+            return {}
+            
+        parts = content.split('---', 2)
+        if len(parts) < 3:
+            return {}
+            
+        frontmatter_yaml = parts[1].strip()
+        if not frontmatter_yaml:
+            return {}
+            
+        return yaml.safe_load(frontmatter_yaml) or {}
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"Failed to parse frontmatter for {file_path}: {e}")
+        return {}
+
+
+def fuzzy_match_resource(knowledge_file: Path, frontmatter: Dict[str, Any], resources: List[dict]) -> Optional[dict]:
+    """Fuzzy match knowledge file to resource by title and date"""
+    km_title = frontmatter.get('title', '').lower()
+    km_date = frontmatter.get('date', '')
+    
+    if not km_title:
+        return None
+        
+    # Score each resource
+    best_match = None
+    best_score = 0
+    
+    for resource in resources:
+        if resource.get('knowledge_url'):  # Skip already linked
+            continue
+            
+        score = 0
+        res_title = (resource.get('title') or '').lower()
+        res_date = resource.get('uploaded_at', '')
+        
+        # Title similarity (simple word overlap)
+        if km_title and res_title:
+            km_words = set(km_title.split())
+            res_words = set(res_title.split())
+            if km_words and res_words:
+                overlap = len(km_words & res_words)
+                similarity = overlap / max(len(km_words), len(res_words))
+                score += similarity * 0.7
+        
+        # Date proximity (if both have dates)
+        if km_date and res_date:
+            try:
+                km_dt = datetime.fromisoformat(km_date.replace('Z', '+00:00')) if isinstance(km_date, str) else km_date
+                res_dt = datetime.fromisoformat(res_date.replace('Z', '+00:00')) if isinstance(res_date, str) else res_date
+                
+                # Same day = 0.3 points, within week = 0.2, within month = 0.1
+                diff_days = abs((km_dt - res_dt).days)
+                if diff_days == 0:
+                    score += 0.3
+                elif diff_days <= 7:
+                    score += 0.2
+                elif diff_days <= 30:
+                    score += 0.1
+            except (ValueError, TypeError):
+                pass
+        
+        if score > best_score and score > 0.5:  # Minimum threshold
+            best_score = score
+            best_match = resource
+            
+    return best_match
+
+
+def advanced_knowledge_reconcile() -> ReconcileResult:
+    """Advanced reconciliation with hash-based matching and detailed reporting"""
+    result: ReconcileResult = {
+        'linked': [],
+        'updated': [],
+        'skipped': [],
+        'conflicts': []
+    }
+    
+    try:
+        meta = load_metadata_file()
+        resources = meta.get('resources', [])
+        
+        if not resources:
+            return result
+            
+        # Build lookup maps
+        resource_by_id = {r.get('id'): r for r in resources if r.get('id')}
+        resource_by_hash = {r.get('knowledge_hash'): r for r in resources if r.get('knowledge_hash')}
+        
+        for md_file in sorted(KNOWLEDGE_DIR.glob('*.md')):
+            file_rel_path = f"/knowledge/{md_file.name}"
+            
+            # Parse frontmatter and compute hash
+            frontmatter = parse_knowledge_frontmatter(md_file)
+            content_hash = compute_content_hash(md_file)
+            
+            if not content_hash:
+                result['skipped'].append(f"{md_file.name}: failed to compute hash")
+                continue
+                
+            matched_resource = None
+            match_type = None
+            
+            # Precedence 1: resource_id in frontmatter
+            resource_id = frontmatter.get('resource_id')
+            if resource_id and resource_id in resource_by_id:
+                candidate = resource_by_id[resource_id]
+                if not candidate.get('knowledge_url'):
+                    matched_resource = candidate
+                    match_type = "resource_id"
+                elif candidate.get('knowledge_url') != file_rel_path:
+                    result['conflicts'].append(f"{md_file.name}: resource_id {resource_id} already linked to {candidate.get('knowledge_url')}")
+                    continue
+                else:
+                    # Already correctly linked
+                    if candidate.get('knowledge_hash') != content_hash:
+                        candidate['knowledge_hash'] = content_hash
+                        result['updated'].append(f"{md_file.name}: updated hash for existing link")
+                    else:
+                        result['skipped'].append(f"{md_file.name}: already correctly linked")
+                    continue
+            
+            # Precedence 2: stored hash match
+            if not matched_resource and content_hash in resource_by_hash:
+                candidate = resource_by_hash[content_hash]
+                if not candidate.get('knowledge_url'):
+                    matched_resource = candidate
+                    match_type = "hash"
+                elif candidate.get('knowledge_url') != file_rel_path:
+                    result['conflicts'].append(f"{md_file.name}: hash {content_hash[:8]} already linked to {candidate.get('knowledge_url')}")
+                    continue
+                else:
+                    # Already correctly linked by hash
+                    result['skipped'].append(f"{md_file.name}: already linked by hash")
+                    continue
+            
+            # Precedence 3: fuzzy match on title/date
+            if not matched_resource:
+                matched_resource = fuzzy_match_resource(md_file, frontmatter, resources)
+                if matched_resource:
+                    match_type = "fuzzy"
+            
+            # Apply the match
+            if matched_resource:
+                matched_resource['knowledge_url'] = file_rel_path
+                matched_resource['knowledge_hash'] = content_hash
+                
+                # Add resource_id to frontmatter if not present
+                if not frontmatter.get('resource_id') and matched_resource.get('id'):
+                    try:
+                        _update_frontmatter_resource_id(md_file, matched_resource['id'])
+                    except Exception as e:
+                        logging.getLogger(__name__).warning(f"Failed to update frontmatter for {md_file}: {e}")
+                
+                result['linked'].append(f"{md_file.name}: linked to '{matched_resource.get('title', 'untitled')}' via {match_type}")
+            else:
+                result['skipped'].append(f"{md_file.name}: no matching resource found")
+                
+        # Save metadata if we made changes
+        if result['linked'] or result['updated']:
+            meta['resources'] = resources
+            save_metadata_file(meta)
+            
+    except Exception as e:
+        result['conflicts'].append(f"Reconciliation error: {str(e)}")
+        logging.getLogger(__name__).error(f"Reconciliation failed: {e}")
+        
+    return result
+
+
+def _update_frontmatter_resource_id(md_file: Path, resource_id: str) -> None:
+    """Add resource_id to frontmatter of markdown file"""
+    try:
+        with open(md_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+            
+        if content.startswith('---'):
+            parts = content.split('---', 2)
+            if len(parts) >= 3:
+                frontmatter_yaml = parts[1].strip()
+                body = parts[2]
+                
+                # Parse existing frontmatter
+                frontmatter = yaml.safe_load(frontmatter_yaml) or {}
+                frontmatter['resource_id'] = resource_id
+                
+                # Rebuild content
+                new_frontmatter = yaml.safe_dump(frontmatter, default_flow_style=False).strip()
+                new_content = f"---\n{new_frontmatter}\n---{body}"
+                
+                # Write atomically
+                tmp_file = md_file.with_suffix(md_file.suffix + '.tmp')
+                with open(tmp_file, 'w', encoding='utf-8') as f:
+                    f.write(new_content)
+                os.replace(tmp_file, md_file)
+                
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"Failed to update frontmatter for {md_file}: {e}")
+        raise
+
+
 def load_resources_from_folder_and_meta() -> List[ResourceItem]:
     meta = load_metadata_file()
     meta_items: List[ResourceItem] = []
