@@ -189,7 +189,8 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Async upload endpoint with 202 response, task tracking, and limits"
+    - "Display resource thumbnails on cards"
+    - "Frontend compatibility with async upload system"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -201,5 +202,7 @@ agent_communication:
     message: "✅ BACKEND THUMBNAIL TESTING COMPLETE: All functionality working perfectly. GET /api/resources lazily generates thumbnails for PDF/video (files created on disk), POST /api/resources/upload creates thumbnails on upload, external URLs handled gracefully, CORS/routes unchanged, performance optimized (30% faster on second call). Ready for main agent to summarize and finish."
   - agent: "main"
     message: "Implemented new async upload system: 1) POST /api/resources/upload now returns 202 Accepted with task_id and idempotency_key, enforces 100MB size and MIME type limits (PDF, MP4, QuickTime, WebM), 2) Added /api/knowledge/task_status?task_id=X endpoint to check upload status, 3) Background processing handles file saving, thumbnail generation, and knowledge ingestion asynchronously. Please test: upload workflow returns 202, task_status shows progress, files process correctly, limits are enforced."
+  - agent: "main"
+    message: "Backend async upload system fully tested and working (17/17 tests passed). Now need to test frontend: 1) Navigate to Resources page, 2) Test file upload - UI should handle 202 response gracefully, 3) Verify uploads still appear in resource list, 4) Check thumbnails still display, 5) Ensure error handling works for invalid files, 6) Test overall UX with new async workflow."
   - agent: "testing"
     message: "✅ ASYNC UPLOAD SYSTEM TESTING COMPLETE: Perfect implementation with all 17/17 tests passing. Core workflow: POST /api/resources/upload returns 202 with task_id/idempotency_key, task status progresses correctly (pending->processing->completed), file validation enforces 100MB limit and MIME types (PDF/MP4/QuickTime/WebM), idempotency prevents duplicate uploads, error handling robust (404 for invalid task_id, 400 for violations), backwards compatibility maintained. Background processing works: thumbnails generated, knowledge ingestion running. System is production-ready and handles all specified requirements flawlessly."
