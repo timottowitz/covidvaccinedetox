@@ -574,6 +574,124 @@ def chunkr_ingest_pdf_bg(file_path_str: str, title: str, tags: List[str], descri
         return None
 
 
+async def process_upload_task(task_id: str, file_content: bytes, filename: str, title: str = None, tags: str = None, description: str = None):
+    """Process upload task in background"""
+    try:
+        # Update task status to processing
+        update_task_status(task_id, TaskStatus.PROCESSING)
+        
+        # Save file to disk
+        fname = Path(filename).name
+        dest = PUBLIC_RESOURCES_DIR / fname
+        
+        with open(dest, 'wb') as f:
+            f.write(file_content)
+            
+        ext = dest.suffix.lstrip('.')
+        kind = infer_kind_from_ext(ext)
+        url = f"/resources/bioweapons/{fname}"
+        
+        # Update metadata
+        meta = load_metadata_file()
+        resources = meta.get('resources', [])
+        now_iso = datetime.now(timezone.utc).isoformat()
+        updated = False
+        
+        for r in resources:
+            if r.get('filename') == fname or r.get('url') == url:
+                if title: r['title'] = title
+                if description is not None: r['description'] = description
+                if tags is not None:
+                    r['tags'] = [t.strip() for t in tags.split(',') if t.strip()]
+                r['ext'] = ext
+                r['kind'] = kind
+                r['uploaded_at'] = now_iso
+                updated = True
+                break
+                
+        if not updated:
+            resources.append({
+                'title': title or fname,
+                'filename': fname,
+                'ext': ext,
+                'url': url,
+                'kind': kind,
+                'tags': [t.strip() for t in (tags or '').split(',') if t.strip()],
+                'description': description,
+                'uploaded_at': now_iso
+            })
+            
+        meta['resources'] = resources
+        save_metadata_file(meta)
+        
+        # Generate thumbnail synchronously
+        thumb_url = None
+        if kind in ('pdf','video'):
+            temp_res = ResourceItem(
+                title=title or fname, 
+                filename=fname, 
+                ext=ext, 
+                url=url, 
+                kind=kind, 
+                tags=[t.strip() for t in (tags or '').split(',') if t.strip()], 
+                description=description, 
+                uploaded_at=datetime.fromisoformat(now_iso)
+            )
+            thumb_url = ensure_thumbnail_for_resource(temp_res, prefer_time_sec=1.0)
+            
+        # Trigger background knowledge ingestion
+        knowledge_job_id = None
+        knowledge_job_type = None
+        
+        try:
+            if kind == 'pdf':
+                knowledge_job_id = str(uuid.uuid4())
+                knowledge_job_type = 'chunkr_pdf'
+                # Start background task but don't wait
+                asyncio.create_task(run_chunkr_ingest_pdf_bg(dest.as_posix(), title or fname, [t.strip() for t in (tags or '').split(',') if t.strip()], description, fname, url))
+            elif kind == 'video':
+                knowledge_job_id = str(uuid.uuid4())
+                knowledge_job_type = 'gemini_video'
+                # Start background task but don't wait
+                asyncio.create_task(run_gemini_summarize_video_bg(dest.as_posix(), title or fname, fname, url))
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"Failed to enqueue background ingestion: {e}")
+            
+        # Create result
+        result = ResourceItem(
+            title=title or fname,
+            filename=fname,
+            ext=ext,
+            url=url,
+            kind=kind,
+            tags=[t.strip() for t in (tags or '').split(',') if t.strip()],
+            description=description,
+            uploaded_at=datetime.fromisoformat(now_iso),
+            thumbnail_url=thumb_url,
+            knowledge_url=None,
+            knowledge_job_id=knowledge_job_id,
+            knowledge_job_type=knowledge_job_type
+        )
+        
+        # Update task status to completed
+        update_task_status(task_id, TaskStatus.COMPLETED, result=result)
+        
+    except Exception as e:
+        error_msg = f"Upload processing failed: {str(e)}"
+        logging.getLogger(__name__).error(error_msg)
+        update_task_status(task_id, TaskStatus.FAILED, error_message=error_msg)
+
+
+async def run_chunkr_ingest_pdf_bg(file_path_str: str, title: str, tags: List[str], description: str, resource_filename: str, resource_url: str):
+    """Async wrapper for chunkr ingestion"""
+    await asyncio.get_event_loop().run_in_executor(None, chunkr_ingest_pdf_bg, file_path_str, title, tags, description, resource_filename, resource_url)
+
+
+async def run_gemini_summarize_video_bg(file_path_str: str, title: str, resource_filename: str, resource_url: str):
+    """Async wrapper for gemini summarization"""
+    await asyncio.get_event_loop().run_in_executor(None, gemini_summarize_video_bg, file_path_str, title, resource_filename, resource_url)
+
+
 def gemini_summarize_video_bg(file_path_str: str, title: str, resource_filename: Optional[str] = None, resource_url: Optional[str] = None) -> Optional[str]:
     if not GEMINI_API_KEY:
         return None
