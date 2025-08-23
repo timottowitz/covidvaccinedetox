@@ -600,8 +600,8 @@ startxref
 def main():
     """Main test runner"""
     tester = BackendAPITester()
-    # Run only incremental tests as requested
-    success = tester.run_incremental_tests_only()
+    # Run thumbnail-specific tests as requested in review
+    success = tester.run_thumbnail_tests()
     return 0 if success else 1
 
 if __name__ == "__main__":
