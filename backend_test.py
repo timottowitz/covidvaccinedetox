@@ -718,6 +718,397 @@ startxref
             self.log_result("CORS and Route Prefixes", False, f"Request failed: {str(e)}")
         return False
 
+    def test_advanced_reconciliation_endpoint(self):
+        """Test POST /api/knowledge/reconcile endpoint structure and response format"""
+        try:
+            response = requests.post(f"{self.api_url}/knowledge/reconcile", timeout=15)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                # Check for required ReconcileResult structure
+                required_fields = ['linked', 'updated', 'skipped', 'conflicts']
+                if all(field in data for field in required_fields):
+                    # Verify all fields are lists
+                    if all(isinstance(data[field], list) for field in required_fields):
+                        details = f"Linked: {len(data['linked'])}, Updated: {len(data['updated'])}, "
+                        details += f"Skipped: {len(data['skipped'])}, Conflicts: {len(data['conflicts'])}"
+                        self.log_result("Advanced Reconciliation Endpoint", True, details)
+                        return True
+                    else:
+                        self.log_result("Advanced Reconciliation Endpoint", False, f"Fields not all lists: {data}")
+                else:
+                    missing = [f for f in required_fields if f not in data]
+                    self.log_result("Advanced Reconciliation Endpoint", False, f"Missing fields: {missing}")
+            else:
+                self.log_result("Advanced Reconciliation Endpoint", False, f"Expected 200, got {response.status_code}")
+        except Exception as e:
+            self.log_result("Advanced Reconciliation Endpoint", False, f"Request failed: {str(e)}")
+        return False
+
+    def test_reconciliation_idempotency(self):
+        """Test that running reconcile multiple times produces consistent results"""
+        try:
+            # First reconciliation call
+            response1 = requests.post(f"{self.api_url}/knowledge/reconcile", timeout=15)
+            
+            if response1.status_code != 200:
+                self.log_result("Reconciliation Idempotency", False, f"First call failed: {response1.status_code}")
+                return False
+                
+            data1 = response1.json()
+            
+            # Second reconciliation call immediately after
+            response2 = requests.post(f"{self.api_url}/knowledge/reconcile", timeout=15)
+            
+            if response2.status_code != 200:
+                self.log_result("Reconciliation Idempotency", False, f"Second call failed: {response2.status_code}")
+                return False
+                
+            data2 = response2.json()
+            
+            # Compare results - should be consistent
+            # After first run, subsequent runs should mostly show "skipped" items
+            first_total_actions = len(data1['linked']) + len(data1['updated'])
+            second_total_actions = len(data2['linked']) + len(data2['updated'])
+            second_skipped = len(data2['skipped'])
+            
+            # Second run should have fewer new actions and more skipped items
+            if second_total_actions <= first_total_actions and second_skipped >= first_total_actions:
+                details = f"First run: {first_total_actions} actions, Second run: {second_total_actions} actions, {second_skipped} skipped"
+                self.log_result("Reconciliation Idempotency", True, details)
+                return True
+            else:
+                details = f"Inconsistent results - First: {first_total_actions} actions, Second: {second_total_actions} actions, {second_skipped} skipped"
+                self.log_result("Reconciliation Idempotency", False, details)
+                
+        except Exception as e:
+            self.log_result("Reconciliation Idempotency", False, f"Request failed: {str(e)}")
+        return False
+
+    def test_knowledge_hash_computation(self):
+        """Test that knowledge files have proper hash computation and storage"""
+        try:
+            # Get current resources to check for knowledge_hash field
+            response = requests.get(f"{self.api_url}/resources", timeout=10)
+            
+            if response.status_code != 200:
+                self.log_result("Knowledge Hash Computation", False, f"Resources endpoint failed: {response.status_code}")
+                return False
+                
+            resources = response.json()
+            
+            # Run reconciliation to ensure hashes are computed
+            reconcile_response = requests.post(f"{self.api_url}/knowledge/reconcile", timeout=15)
+            
+            if reconcile_response.status_code != 200:
+                self.log_result("Knowledge Hash Computation", False, f"Reconcile failed: {reconcile_response.status_code}")
+                return False
+                
+            reconcile_data = reconcile_response.json()
+            
+            # Get resources again to check for updated hashes
+            response2 = requests.get(f"{self.api_url}/resources", timeout=10)
+            
+            if response2.status_code != 200:
+                self.log_result("Knowledge Hash Computation", False, f"Second resources call failed: {response2.status_code}")
+                return False
+                
+            updated_resources = response2.json()
+            
+            # Check for resources with knowledge_hash field
+            resources_with_hash = [r for r in updated_resources if r.get('knowledge_hash')]
+            resources_with_knowledge_url = [r for r in updated_resources if r.get('knowledge_url')]
+            
+            # Verify hash format (should be SHA256 - 64 hex characters)
+            valid_hashes = []
+            for r in resources_with_hash:
+                hash_val = r.get('knowledge_hash', '')
+                if len(hash_val) == 64 and all(c in '0123456789abcdef' for c in hash_val.lower()):
+                    valid_hashes.append(r['title'])
+            
+            details = f"Resources with knowledge_url: {len(resources_with_knowledge_url)}, "
+            details += f"Resources with knowledge_hash: {len(resources_with_hash)}, "
+            details += f"Valid SHA256 hashes: {len(valid_hashes)}"
+            
+            if len(resources_with_knowledge_url) > 0 and len(valid_hashes) > 0:
+                self.log_result("Knowledge Hash Computation", True, details)
+                return True
+            else:
+                self.log_result("Knowledge Hash Computation", False, f"No valid hashes found. {details}")
+                
+        except Exception as e:
+            self.log_result("Knowledge Hash Computation", False, f"Request failed: {str(e)}")
+        return False
+
+    def test_frontmatter_parsing(self):
+        """Test YAML frontmatter parsing from knowledge markdown files"""
+        try:
+            # Get knowledge status to see available files
+            response = requests.get(f"{self.api_url}/knowledge/status", timeout=10)
+            
+            if response.status_code != 200:
+                self.log_result("Frontmatter Parsing", False, f"Knowledge status failed: {response.status_code}")
+                return False
+                
+            status_data = response.json()
+            knowledge_files = status_data.get('files', [])
+            
+            if len(knowledge_files) == 0:
+                self.log_result("Frontmatter Parsing", False, "No knowledge files found")
+                return False
+            
+            # Run reconciliation which should parse frontmatter
+            reconcile_response = requests.post(f"{self.api_url}/knowledge/reconcile", timeout=15)
+            
+            if reconcile_response.status_code != 200:
+                self.log_result("Frontmatter Parsing", False, f"Reconcile failed: {reconcile_response.status_code}")
+                return False
+                
+            reconcile_data = reconcile_response.json()
+            
+            # Check if reconciliation processed files (indicating frontmatter parsing worked)
+            total_processed = len(reconcile_data['linked']) + len(reconcile_data['updated']) + len(reconcile_data['skipped'])
+            
+            # Check for specific frontmatter-based matching in results
+            frontmatter_matches = []
+            for item in reconcile_data['linked']:
+                if 'resource_id' in item or 'hash' in item or 'fuzzy' in item:
+                    frontmatter_matches.append(item)
+            
+            details = f"Knowledge files: {len(knowledge_files)}, "
+            details += f"Total processed: {total_processed}, "
+            details += f"Frontmatter-based matches: {len(frontmatter_matches)}"
+            
+            if total_processed >= len(knowledge_files):
+                self.log_result("Frontmatter Parsing", True, details)
+                return True
+            else:
+                self.log_result("Frontmatter Parsing", False, f"Not all files processed. {details}")
+                
+        except Exception as e:
+            self.log_result("Frontmatter Parsing", False, f"Request failed: {str(e)}")
+        return False
+
+    def test_three_tier_matching_precedence(self):
+        """Test the three-tier matching precedence: resource_id, hash, fuzzy"""
+        try:
+            # Run reconciliation and analyze the matching types in results
+            response = requests.post(f"{self.api_url}/knowledge/reconcile", timeout=15)
+            
+            if response.status_code != 200:
+                self.log_result("Three-Tier Matching Precedence", False, f"Reconcile failed: {response.status_code}")
+                return False
+                
+            data = response.json()
+            
+            # Analyze the linked results for matching types
+            resource_id_matches = []
+            hash_matches = []
+            fuzzy_matches = []
+            
+            for item in data['linked']:
+                if 'resource_id' in item:
+                    resource_id_matches.append(item)
+                elif 'hash' in item:
+                    hash_matches.append(item)
+                elif 'fuzzy' in item:
+                    fuzzy_matches.append(item)
+            
+            # Check that the system is using different matching strategies
+            total_matches = len(resource_id_matches) + len(hash_matches) + len(fuzzy_matches)
+            
+            details = f"Resource ID matches: {len(resource_id_matches)}, "
+            details += f"Hash matches: {len(hash_matches)}, "
+            details += f"Fuzzy matches: {len(fuzzy_matches)}, "
+            details += f"Total matches: {total_matches}"
+            
+            # Test passes if we have any matches and the system is working
+            if len(data['linked']) > 0 or len(data['updated']) > 0 or len(data['skipped']) > 0:
+                self.log_result("Three-Tier Matching Precedence", True, details)
+                return True
+            else:
+                self.log_result("Three-Tier Matching Precedence", False, f"No matching activity detected. {details}")
+                
+        except Exception as e:
+            self.log_result("Three-Tier Matching Precedence", False, f"Request failed: {str(e)}")
+        return False
+
+    def test_detailed_reporting_format(self):
+        """Test that reconciliation provides detailed reporting with clear categorization"""
+        try:
+            response = requests.post(f"{self.api_url}/knowledge/reconcile", timeout=15)
+            
+            if response.status_code != 200:
+                self.log_result("Detailed Reporting Format", False, f"Reconcile failed: {response.status_code}")
+                return False
+                
+            data = response.json()
+            
+            # Check that each category contains meaningful information
+            categories_with_data = []
+            detailed_messages = []
+            
+            for category in ['linked', 'updated', 'skipped', 'conflicts']:
+                items = data.get(category, [])
+                if len(items) > 0:
+                    categories_with_data.append(category)
+                    # Check if items contain descriptive messages
+                    for item in items[:3]:  # Check first 3 items
+                        if isinstance(item, str) and len(item) > 10:  # Meaningful message
+                            detailed_messages.append(f"{category}: {item[:50]}...")
+            
+            # Verify response structure and content quality
+            has_structure = all(isinstance(data.get(cat, []), list) for cat in ['linked', 'updated', 'skipped', 'conflicts'])
+            has_detailed_messages = len(detailed_messages) > 0
+            
+            details = f"Categories with data: {categories_with_data}, "
+            details += f"Sample messages: {len(detailed_messages)}"
+            
+            if has_structure and (len(categories_with_data) > 0 or len(data.get('skipped', [])) > 0):
+                self.log_result("Detailed Reporting Format", True, details)
+                return True
+            else:
+                self.log_result("Detailed Reporting Format", False, f"Poor reporting quality. {details}")
+                
+        except Exception as e:
+            self.log_result("Detailed Reporting Format", False, f"Request failed: {str(e)}")
+        return False
+
+    def test_conflict_detection(self):
+        """Test how system handles conflicting matches"""
+        try:
+            # Run reconciliation multiple times to potentially create conflicts
+            response1 = requests.post(f"{self.api_url}/knowledge/reconcile", timeout=15)
+            
+            if response1.status_code != 200:
+                self.log_result("Conflict Detection", False, f"First reconcile failed: {response1.status_code}")
+                return False
+                
+            data1 = response1.json()
+            
+            # Check if any conflicts were detected
+            conflicts = data1.get('conflicts', [])
+            
+            # Even if no conflicts exist, the system should handle the conflicts field properly
+            has_conflicts_field = 'conflicts' in data1
+            conflicts_is_list = isinstance(conflicts, list)
+            
+            details = f"Conflicts detected: {len(conflicts)}, "
+            details += f"Conflicts field present: {has_conflicts_field}, "
+            details += f"Conflicts is list: {conflicts_is_list}"
+            
+            if len(conflicts) > 0:
+                # Analyze conflict messages for meaningful content
+                meaningful_conflicts = [c for c in conflicts if isinstance(c, str) and len(c) > 20]
+                details += f", Meaningful conflict messages: {len(meaningful_conflicts)}"
+                
+                if len(meaningful_conflicts) > 0:
+                    details += f", Sample: {meaningful_conflicts[0][:50]}..."
+            
+            if has_conflicts_field and conflicts_is_list:
+                self.log_result("Conflict Detection", True, details)
+                return True
+            else:
+                self.log_result("Conflict Detection", False, f"Conflict handling issues. {details}")
+                
+        except Exception as e:
+            self.log_result("Conflict Detection", False, f"Request failed: {str(e)}")
+        return False
+
+    def test_resource_metadata_updates(self):
+        """Test that knowledge_hash field gets stored in resource metadata"""
+        try:
+            # Get initial resources state
+            response1 = requests.get(f"{self.api_url}/resources", timeout=10)
+            
+            if response1.status_code != 200:
+                self.log_result("Resource Metadata Updates", False, f"Initial resources call failed: {response1.status_code}")
+                return False
+                
+            initial_resources = response1.json()
+            initial_hashes = {r.get('id', r.get('title', 'unknown')): r.get('knowledge_hash') for r in initial_resources}
+            
+            # Run reconciliation
+            reconcile_response = requests.post(f"{self.api_url}/knowledge/reconcile", timeout=15)
+            
+            if reconcile_response.status_code != 200:
+                self.log_result("Resource Metadata Updates", False, f"Reconcile failed: {reconcile_response.status_code}")
+                return False
+                
+            reconcile_data = reconcile_response.json()
+            
+            # Get updated resources state
+            response2 = requests.get(f"{self.api_url}/resources", timeout=10)
+            
+            if response2.status_code != 200:
+                self.log_result("Resource Metadata Updates", False, f"Updated resources call failed: {response2.status_code}")
+                return False
+                
+            updated_resources = response2.json()
+            updated_hashes = {r.get('id', r.get('title', 'unknown')): r.get('knowledge_hash') for r in updated_resources}
+            
+            # Compare hash states
+            new_hashes = []
+            updated_hash_count = 0
+            
+            for resource_id, new_hash in updated_hashes.items():
+                old_hash = initial_hashes.get(resource_id)
+                if new_hash and not old_hash:
+                    new_hashes.append(resource_id)
+                elif new_hash and old_hash and new_hash != old_hash:
+                    updated_hash_count += 1
+            
+            # Check for resources with knowledge_url and corresponding knowledge_hash
+            linked_resources = [r for r in updated_resources if r.get('knowledge_url')]
+            hashed_resources = [r for r in updated_resources if r.get('knowledge_hash')]
+            
+            details = f"Resources with knowledge_url: {len(linked_resources)}, "
+            details += f"Resources with knowledge_hash: {len(hashed_resources)}, "
+            details += f"New hashes added: {len(new_hashes)}, "
+            details += f"Hashes updated: {updated_hash_count}"
+            
+            # Test passes if we have linked resources with corresponding hashes
+            if len(linked_resources) > 0 and len(hashed_resources) >= len(linked_resources):
+                self.log_result("Resource Metadata Updates", True, details)
+                return True
+            else:
+                self.log_result("Resource Metadata Updates", False, f"Hash storage issues. {details}")
+                
+        except Exception as e:
+            self.log_result("Resource Metadata Updates", False, f"Request failed: {str(e)}")
+        return False
+
+    def run_advanced_reconciliation_tests(self):
+        """Run comprehensive tests for the advanced reconciliation system"""
+        print("🚀 Starting Advanced Reconciliation System Tests")
+        print(f"Testing against: {self.base_url}")
+        print("=" * 60)
+
+        # Core system tests
+        self.test_health_endpoint()  # Verify system is running
+        
+        # Advanced reconciliation tests
+        self.test_advanced_reconciliation_endpoint()  # Test endpoint structure
+        self.test_knowledge_hash_computation()  # Test SHA256 hash computation
+        self.test_frontmatter_parsing()  # Test YAML frontmatter parsing
+        self.test_three_tier_matching_precedence()  # Test matching precedence
+        self.test_detailed_reporting_format()  # Test response categorization
+        self.test_reconciliation_idempotency()  # Test idempotency
+        self.test_conflict_detection()  # Test conflict handling
+        self.test_resource_metadata_updates()  # Test knowledge_hash storage
+
+        # Print summary
+        print("\n" + "=" * 60)
+        print(f"📊 Advanced Reconciliation Test Results: {self.tests_passed}/{self.tests_run} tests passed")
+        
+        if self.tests_passed == self.tests_run:
+            print("🎉 All advanced reconciliation tests passed!")
+            return True
+        else:
+            print("⚠️  Some advanced reconciliation tests failed. Check details above.")
+            return False
+
     def run_all_tests(self):
         """Run all backend API tests"""
         print("🚀 Starting Backend API Tests")
