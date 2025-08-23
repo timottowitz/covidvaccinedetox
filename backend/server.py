@@ -456,7 +456,7 @@ def chunkr_ingest_pdf_bg(file_path_str: str, title: str, tags: List[str], descri
         return None
 
 
-def gemini_summarize_video_bg(file_path_str: str, title: str) -> Optional[str]:
+def gemini_summarize_video_bg(file_path_str: str, title: str, resource_filename: Optional[str] = None, resource_url: Optional[str] = None) -> Optional[str]:
     if not GEMINI_API_KEY:
         return None
     try:
