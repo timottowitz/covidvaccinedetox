@@ -198,7 +198,7 @@ function Resources() {
     try {
       setLoading(true);
       const { data } = await api.get('/resources');
-      setResources(data.resources || []);
+      setResources(data || []);
     } catch (error) {
       console.error('Failed to load resources:', error);
       toast({title: 'Error', description: 'Failed to load resources'});
