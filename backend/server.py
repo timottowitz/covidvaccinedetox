@@ -1106,6 +1106,53 @@ async def delete_resource(filename: Optional[str] = Query(default=None), url: Op
             pass
     return {"ok": True, "removed": removed}
 
+# -------------------------
+# Knowledge Endpoints
+# -------------------------
+
+def _knowledge_reconcile_internal() -> int:
+    meta = load_metadata_file()
+    resources = meta.get('resources', [])
+    # Build map: slug -> list of resource dicts
+    def mk_slug(s: str) -> str:
+        return re.sub(r"[^a-zA-Z0-9_\-]+","-", (s or '').lower()).strip('-')
+    res_map: Dict[str, List[dict]] = {}
+    for r in resources:
+        title = r.get('title') or r.get('filename') or r.get('url') or ''
+        slug = mk_slug(Path(title).stem)
+        res_map.setdefault(slug, []).append(r)
+    updated = 0
+    for p in KNOWLEDGE_DIR.glob('*.md'):
+        name = p.stem
+        base = re.sub(r"-(\d+)$", "", name).replace('_video','')
+        if base in res_map:
+            for r in res_map[base]:
+                if not r.get('knowledge_url'):
+                    r['knowledge_url'] = f"/knowledge/{p.name}"
+                    updated += 1
+    if updated:
+        meta['resources'] = resources
+        save_metadata_file(meta)
+    return updated
+
+@api.get("/knowledge/status")
+async def knowledge_status():
+    files = []
+    for p in sorted(KNOWLEDGE_DIR.glob("*.md")):
+        st = p.stat()
+        files.append({
+            "filename": p.name,
+            "url": f"/knowledge/{p.name}",
+            "modified": datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).isoformat(),
+            "size": st.st_size
+        })
+    return {"files": files}
+
+@api.post("/knowledge/reconcile")
+async def knowledge_reconcile():
+    updated = _knowledge_reconcile_internal()
+    return {"updated": updated}
+
 # -------------------------------------------------
 # Other routes
 # -------------------------------------------------
