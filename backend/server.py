@@ -1017,16 +1017,31 @@ def fuzzy_match_resource(knowledge_file: Path, frontmatter: Dict[str, Any], reso
         res_title = (resource.get('title') or '').lower()
         res_date = resource.get('uploaded_at', '')
         
-        # Title similarity (simple word overlap)
+        # Title similarity with improved normalization
         if km_title and res_title:
-            # Clean up resource title by removing file extensions and splitting on common separators
-            res_title_clean = res_title.replace('.pdf', '').replace('.mp4', '').replace('.m4a', '').replace('.webm', '')
-            km_words = set(km_title.replace('-', ' ').split())
-            res_words = set(res_title_clean.replace('-', ' ').replace('_', ' ').split())
+            # Clean up resource title by removing file extensions and normalizing separators
+            res_title_clean = res_title.replace('.pdf', '').replace('.mp4', '').replace('.m4a', '').replace('.webm', '').replace('.mov', '')
+            
+            # Normalize both titles: replace separators with spaces, remove extra spaces
+            km_normalized = re.sub(r'[_\-]+', ' ', km_title).strip()
+            res_normalized = re.sub(r'[_\-]+', ' ', res_title_clean).strip()
+            
+            # Split into words
+            km_words = set(word for word in km_normalized.split() if len(word) > 2)  # Filter out short words
+            res_words = set(word for word in res_normalized.split() if len(word) > 2)
+            
             if km_words and res_words:
                 overlap = len(km_words & res_words)
-                similarity = overlap / max(len(km_words), len(res_words))
-                score += similarity * 0.7
+                union = len(km_words | res_words)
+                
+                # Use Jaccard similarity instead of simple overlap
+                if union > 0:
+                    jaccard_similarity = overlap / union
+                    score += jaccard_similarity * 0.8
+                    
+                # Bonus for exact substring matches
+                if km_normalized in res_normalized or res_normalized in km_normalized:
+                    score += 0.2
         
         # Date proximity (if both have dates)
         if km_date and res_date:
@@ -1045,7 +1060,8 @@ def fuzzy_match_resource(knowledge_file: Path, frontmatter: Dict[str, Any], reso
             except (ValueError, TypeError):
                 pass
         
-        if score > best_score and score > 0.5:  # Minimum threshold
+        # Lowered threshold for better matching and track best score
+        if score > best_score and score > 0.3:  # Lowered from 0.5 to 0.3
             best_score = score
             best_match = resource
             
