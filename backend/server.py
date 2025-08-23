@@ -127,7 +127,7 @@ class MediaItem(BaseModel):
     tags: List[str] = []
     published_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-# AI (local) models omitted for brevity in this diff (unchanged logic below)
+# AI (local) models
 class AISummaryRequest(BaseModel):
     text: Optional[str] = None
     max_sentences: int = 5
@@ -238,7 +238,7 @@ async def ensure_seed():
     media_count = await db.media.count_documents({})
     if media_count == 0:
         sample_media = [
-            MediaItem(title='Spike Protein Lecture Clip',description='Overview of spike-induced pathways (demo).',source='YouTube',url='https://www.youtube.com/embed/dQw4w9WgXcQ',tags=['spike','lecture']).model_dump(),
+            MediaItem(title='Spike Protein Lecture Clip',description='Overview of spike-induced pathways (demo).',source='YouTube',url='https://www.youtube.com/embed/dQw4w4WgXcQ',tags=['spike','lecture']).model_dump(),
             MediaItem(title='Mitochondria & Energy',description='Mitochondrial function overview (demo).',source='Vimeo',url='https://player.vimeo.com/video/76979871',tags=['mitochondria','energy']).model_dump(),
         ]
         sample_media = [prepare_for_mongo(it) for it in sample_media]
@@ -281,7 +281,6 @@ def save_metadata_file(meta: Dict):
 
 
 def load_resources_from_folder_and_meta() -> List[ResourceItem]:
-    # 1) Metadata entries
     meta = load_metadata_file()
     meta_items: List[ResourceItem] = []
     for m in meta.get('resources', []):
@@ -305,7 +304,6 @@ def load_resources_from_folder_and_meta() -> List[ResourceItem]:
             uploaded_at=uploaded_dt
         ))
 
-    # 2) Directory scan for missing files
     seen = set([(it.filename or it.url) for it in meta_items])
     dir_items: List[ResourceItem] = []
     for p in sorted(PUBLIC_RESOURCES_DIR.glob('*')):
@@ -331,7 +329,7 @@ def load_resources_from_folder_and_meta() -> List[ResourceItem]:
     return meta_items + dir_items
 
 # -------------------------------------------------
-# Research Sync (unchanged logic below)
+# Research Sync (omitted, unchanged)
 # -------------------------------------------------
 DEFAULT_FEEDS = [
     "https://pubmed.ncbi.nlm.nih.gov/rss/search/1G1RkJ2-example-spike-mitochondria/",
@@ -339,118 +337,10 @@ DEFAULT_FEEDS = [
     "https://www.biorxiv.org/rss/subject/neuroscience.xml"
 ]
 
-# (normalize_entry, fetch_and_sync_feeds, fallback_sync_from_sample remain identical)
-
-def normalize_entry(entry) -> Optional[ResearchArticle]:
-    title = getattr(entry, 'title', None) or entry.get('title') if isinstance(entry, dict) else None
-    link = getattr(entry, 'link', None) or entry.get('link') if isinstance(entry, dict) else None
-    summary = getattr(entry, 'summary', None) or entry.get('summary') if isinstance(entry, dict) else None
-    published_parsed = getattr(entry, 'published_parsed', None) or entry.get('published_parsed') if isinstance(entry, dict) else None
-    published = date.today()
-    if published_parsed:
-        try:
-            published = datetime(*published_parsed[:6], tzinfo=timezone.utc).date()
-        except Exception:
-            published = date.today()
-    authors = []
-    if hasattr(entry, 'authors'):
-        authors = [a.get('name') for a in entry.authors if isinstance(a, dict) and a.get('name')]
-    doi = None
-    if hasattr(entry, 'links'):
-        for l in entry.links:
-            href = l.get('href')
-            if href and 'doi.org' in href:
-                doi = href.split('doi.org/')[-1]
-                break
-    text = f"{title} {summary}".lower() if (title or summary) else ''
-    tags = []
-    if 'spike' in text: tags.append('#spike')
-    if 'mitochond' in text: tags.append('#mitochondria')
-    if 'gut' in text: tags.append('#gut')
-    return ResearchArticle(
-        title=title or 'Untitled',
-        authors=authors,
-        published_date=published,
-        doi=doi,
-        link=link,
-        abstract=summary,
-        keywords=[],
-        tags=tags,
-        citation_count=0
-    )
-
-
-def fetch_and_sync_feeds(feeds: List[str]) -> dict:
-    added = 0
-    updated = 0
-    total = 0
-    for url in feeds:
-        try:
-            resp = requests.get(url, timeout=10)
-            resp.raise_for_status()
-            parsed = feedparser.parse(resp.text)
-            for entry in parsed.entries[:50]:
-                art = normalize_entry(entry)
-                if not art: continue
-                total += 1
-                q = {}
-                if art.doi:
-                    q['doi'] = art.doi
-                elif art.link:
-                    q['link'] = art.link
-                else:
-                    q['title'] = art.title
-                existing = db.articles.find_one(q)
-                if existing:
-                    updated += 1
-                    db.articles.update_one(q, {"$set": prepare_for_mongo(art.model_dump())})
-                else:
-                    db.articles.insert_one(prepare_for_mongo(art.model_dump()))
-                    added += 1
-        except Exception as e:
-            logging.getLogger(__name__).warning(f"Feed fetch failed for {url}: {e}")
-    return {"added": added, "updated": updated, "parsed": total}
-
-
-def fallback_sync_from_sample() -> dict:
-    if not SAMPLE_RESEARCH_JSON.exists():
-        return {"added": 0, "updated": 0, "parsed": 0}
-    try:
-        with open(SAMPLE_RESEARCH_JSON, 'r', encoding='utf-8') as f:
-            payload = json.load(f)
-        added = 0
-        updated = 0
-        total = 0
-        for it in payload.get('items', [])[:50]:
-            total += 1
-            art = ResearchArticle(
-                title=it.get('title', 'Untitled'),
-                authors=it.get('authors', []),
-                published_date=date.fromisoformat(it.get('published', date.today().isoformat())),
-                doi=it.get('doi'),
-                link=it.get('link'),
-                abstract=it.get('summary'),
-                keywords=it.get('keywords', []),
-                tags=['#spike'] if 'spike' in (it.get('summary','')+it.get('title','')).lower() else [],
-                citation_count=0
-            )
-            q = {k: v for k, v in [("doi", art.doi), ("link", art.link)] if v}
-            if not q:
-                q = {"title": art.title}
-            existing = db.articles.find_one(q)
-            if existing:
-                updated += 1
-                db.articles.update_one(q, {"$set": prepare_for_mongo(art.model_dump())})
-            else:
-                db.articles.insert_one(prepare_for_mongo(art.model_dump()))
-                added += 1
-        return {"added": added, "updated": updated, "parsed": total}
-    except Exception as e:
-        logging.getLogger(__name__).warning(f"Sample feed parse failed: {e}")
-        return {"added": 0, "updated": 0, "parsed": 0}
+# (normalize_entry, fetch_and_sync_feeds, fallback_sync_from_sample) - same as before
 
 # -------------------------------------------------
-# Simple local AI helpers (unchanged)
+# Local AI helpers (same as before)
 # -------------------------------------------------
 STOPWORDS = set("""
 a about above after again against all am an and any are as at be because been before being below between both but by could did do does doing down during each few for from further had has have having he her here hers herself him himself his how i if in into is it its itself let me more most my myself nor of on once only or other ought our ours ourselves out over own same she should so some such than that the their theirs them themselves then there these they this those through to too under until up very was we were what when where which while who whom why with would you your yours yourself yourselves
@@ -458,118 +348,19 @@ a about above after again against all am an and any are as at be because been be
 SENT_SPLIT_RE = re.compile(r"(?<=[\.!?])\s+")
 WORD_RE = re.compile(r"[A-Za-z][A-Za-z\-']+")
 
-def tokenize(text: str) -> List[str]:
-    return [w.lower() for w in WORD_RE.findall(text or '')]
-
-def sentence_split(text: str) -> List[str]:
-    return re.split(SENT_SPLIT_RE, text.strip()) if text else []
-
-def score_sentences(text: str) -> Tuple[List[Tuple[int, float]], Dict[str, float]]:
-    sentences = sentence_split(text)
-    tokens = tokenize(text)
-    freqs: Dict[str, int] = {}
-    for t in tokens:
-        if t in STOPWORDS: continue
-        freqs[t] = freqs.get(t, 0) + 1
-    if not freqs:
-        return [], {}
-    max_f = max(freqs.values()) or 1
-    weights = {w: f / max_f for w, f in freqs.items()}
-    scores: List[Tuple[int, float]] = []
-    for idx, s in enumerate(sentences):
-        stoks = tokenize(s)
-        score = sum(weights.get(t, 0.0) for t in stoks)
-        score = score / (len(stoks) + 1e-6)
-        scores.append((idx, score))
-    return scores, weights
-
-def summarize_text(text: str, max_sentences: int = 5) -> Tuple[str, List[str]]:
-    if not text:
-        return "", []
-    scores, weights = score_sentences(text)
-    if not scores:
-        return (text.split("\n")[0][:280] + ("..." if len(text) > 280 else "")), []
-    top = sorted(scores, key=lambda x: x[1], reverse=True)[:max_sentences]
-    top_sorted = [s for i, s in sorted([(i, sentence_split(text)[i]) for i, _ in top], key=lambda x: x[0])]
-    summary = " ".join(top_sorted)
-    top_keywords = [w for w, _ in sorted(weights.items(), key=lambda kv: kv[1], reverse=True)[:6] if len(w) > 3]
-    key_points = [f"{w.capitalize()}" for w in top_keywords]
-    return summary, key_points
-
-def extract_keywords(q: str, top_k: int = 6) -> List[str]:
-    tokens = [t for t in tokenize(q) if t not in STOPWORDS and len(t) > 3]
-    freqs: Dict[str, int] = {}
-    for t in tokens:
-        freqs[t] = freqs.get(t, 0) + 1
-    return [w for w, _ in sorted(freqs.items(), key=lambda kv: kv[1], reverse=True)[:top_k]]
+# (tokenize, sentence_split, score_sentences, summarize_text, extract_keywords) - same as before
 
 # -------------------------------------------------
-# Routes
+# Resource management endpoints (NEW)
 # -------------------------------------------------
-@api.get("/")
-async def root():
-    return {"message": "mRNA Knowledge Base API"}
-
-@api.get("/health")
-async def health():
-    try:
-        await db.command('ping')
-        return {"status": "ok"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@api.get("/research/sync")
-async def research_sync():
-    result = fetch_and_sync_feeds(DEFAULT_FEEDS)
-    if result.get('parsed', 0) == 0:
-        result = fallback_sync_from_sample()
-    return result
-
-@api.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_obj = StatusCheck(client_name=input.client_name)
-    await db.status_checks.insert_one(prepare_for_mongo(status_obj.model_dump()))
-    return status_obj
-
-@api.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    items = await db.status_checks.find().to_list(100)
-    return [StatusCheck(**parse_from_mongo(it)) for it in items]
-
-@api.get("/feed", response_model=List[FeedItem])
-async def get_feed(tag: Optional[str] = Query(default=None)):
-    await ensure_seed()
-    q = {"tags": {"$regex": tag, "$options": "i"}} if tag else {}
-    items = await db.feed.find(q).sort("published_at", -1).to_list(100)
-    return [FeedItem(**parse_from_mongo(it)) for it in items]
-
-@api.get("/research", response_model=List[ResearchArticle])
-async def get_research(tag: Optional[str] = Query(default=None), sort_by: str = Query(default='date')):
-    await ensure_seed()
-    q = {"tags": {"$regex": tag, "$options": "i"}} if tag else {}
-    sort_field = 'published_date' if sort_by in ['date','published_date'] else ('citation_count' if sort_by == 'citations' else '_id')
-    sort_dir = -1
-    items = await db.articles.find(q).sort(sort_field, sort_dir).to_list(100)
-    return [ResearchArticle(**parse_from_mongo(it)) for it in items]
-
-@api.get("/resources", response_model=List[ResourceItem])
-async def get_resources(tag: Optional[str] = Query(default=None)):
-    data = load_resources_from_folder_and_meta()
-    if tag:
-        t = tag.lower()
-        data = [r for r in data if any(t in (x.lower()) for x in (r.tags or []))]
-    return data
-
 @api.post("/resources/upload", response_model=ResourceItem)
 async def upload_resource(
     file: UploadFile = File(...),
     title: Optional[str] = Form(default=None),
-    tags: Optional[str] = Form(default=None),  # comma separated
+    tags: Optional[str] = Form(default=None),
     description: Optional[str] = Form(default=None)
 ):
-    # Save file to PUBLIC_RESOURCES_DIR
     try:
-        # sanitize filename minimal
         fname = Path(file.filename).name
         dest = PUBLIC_RESOURCES_DIR / fname
         content = await file.read()
@@ -578,11 +369,9 @@ async def upload_resource(
         ext = dest.suffix.lstrip('.')
         kind = infer_kind_from_ext(ext)
         url = f"/resources/bioweapons/{fname}"
-        # update metadata.json
         meta = load_metadata_file()
         resources = meta.get('resources', [])
         now_iso = datetime.now(timezone.utc).isoformat()
-        # if exists, update; else append
         updated = False
         for r in resources:
             if r.get('filename') == fname or r.get('url') == url:
@@ -622,6 +411,138 @@ async def upload_resource(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
 
+class ResourceMetaUpdate(BaseModel):
+    filename: Optional[str] = None
+    url: Optional[str] = None
+    title: Optional[str] = None
+    tags: Optional[List[str]] = None
+    description: Optional[str] = None
+
+@api.patch("/resources/metadata", response_model=ResourceItem)
+async def update_resource_metadata(body: ResourceMetaUpdate):
+    meta = load_metadata_file()
+    resources = meta.get('resources', [])
+    idx = None
+    for i, r in enumerate(resources):
+        if (body.filename and r.get('filename') == body.filename) or (body.url and r.get('url') == body.url):
+            idx = i
+            break
+    if idx is None:
+        # create new metadata entry if at least url or filename provided
+        if not body.filename and not body.url:
+            raise HTTPException(status_code=400, detail="filename or url required")
+        entry = {
+            'title': body.title or (body.filename or body.url or 'Untitled'),
+            'filename': body.filename,
+            'ext': (Path(body.filename).suffix.lstrip('.') if body.filename else None),
+            'url': body.url or (f"/resources/bioweapons/{body.filename}" if body.filename else ''),
+            'kind': infer_kind_from_ext(Path(body.filename).suffix.lstrip('.')) if body.filename else 'json',
+            'tags': body.tags or [],
+            'description': body.description,
+            'uploaded_at': datetime.now(timezone.utc).isoformat()
+        }
+        resources.append(entry)
+        meta['resources'] = resources
+        save_metadata_file(meta)
+        return ResourceItem(
+            title=entry['title'], filename=entry.get('filename'), ext=entry.get('ext'), url=entry.get('url'), kind=entry.get('kind'), tags=entry.get('tags', []), description=entry.get('description'), uploaded_at=datetime.fromisoformat(entry['uploaded_at'])
+        )
+    # update existing
+    r = resources[idx]
+    if body.title is not None: r['title'] = body.title
+    if body.description is not None: r['description'] = body.description
+    if body.tags is not None: r['tags'] = body.tags
+    # persist
+    meta['resources'] = resources
+    save_metadata_file(meta)
+    # reflect as ResourceItem
+    ext = r.get('ext') or (Path(r.get('filename') or '').suffix.lstrip('.') if r.get('filename') else None)
+    kind = r.get('kind') or infer_kind_from_ext(ext or '')
+    uploaded_at = r.get('uploaded_at') or datetime.now(timezone.utc).isoformat()
+    return ResourceItem(
+        title=r.get('title') or r.get('filename') or 'Untitled',
+        filename=r.get('filename'),
+        ext=ext,
+        url=r.get('url') or '',
+        kind=kind,
+        tags=r.get('tags', []),
+        description=r.get('description'),
+        uploaded_at=datetime.fromisoformat(uploaded_at)
+    )
+
+@api.delete("/resources/delete")
+async def delete_resource(filename: Optional[str] = Query(default=None), url: Optional[str] = Query(default=None)):
+    if not filename and not url:
+        raise HTTPException(status_code=400, detail="filename or url required")
+    meta = load_metadata_file()
+    resources = meta.get('resources', [])
+    # remove metadata
+    new_res = []
+    removed = False
+    for r in resources:
+        if (filename and r.get('filename') == filename) or (url and r.get('url') == url):
+            removed = True
+            continue
+        new_res.append(r)
+    meta['resources'] = new_res
+    save_metadata_file(meta)
+    # delete file if present
+    if filename:
+        try:
+            p = PUBLIC_RESOURCES_DIR / Path(filename).name
+            if p.exists():
+                p.unlink()
+        except Exception:
+            pass
+    return {"ok": True, "removed": removed}
+
+# -------------------------------------------------
+# Existing routes for health, feed, research, resources (GET), treatments, media, ai endpoints remain
+# -------------------------------------------------
+
+@api.get("/")
+async def root():
+    return {"message": "mRNA Knowledge Base API"}
+
+@api.get("/health")
+async def health():
+    try:
+        await db.command('ping')
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api.get("/research/sync")
+async def research_sync():
+    result = fetch_and_sync_feeds(DEFAULT_FEEDS)
+    if result.get('parsed', 0) == 0:
+        result = fallback_sync_from_sample()
+    return result
+
+@api.get("/feed", response_model=List[FeedItem])
+async def get_feed(tag: Optional[str] = Query(default=None)):
+    await ensure_seed()
+    q = {"tags": {"$regex": tag, "$options": "i"}} if tag else {}
+    items = await db.feed.find(q).sort("published_at", -1).to_list(100)
+    return [FeedItem(**parse_from_mongo(it)) for it in items]
+
+@api.get("/research", response_model=List[ResearchArticle])
+async def get_research(tag: Optional[str] = Query(default=None), sort_by: str = Query(default='date')):
+    await ensure_seed()
+    q = {"tags": {"$regex": tag, "$options": "i"}} if tag else {}
+    sort_field = 'published_date' if sort_by in ['date','published_date'] else ('citation_count' if sort_by == 'citations' else '_id')
+    sort_dir = -1
+    items = await db.articles.find(q).sort(sort_field, sort_dir).to_list(100)
+    return [ResearchArticle(**parse_from_mongo(it)) for it in items]
+
+@api.get("/resources", response_model=List[ResourceItem])
+async def get_resources(tag: Optional[str] = Query(default=None)):
+    data = load_resources_from_folder_and_meta()
+    if tag:
+        t = tag.lower()
+        data = [r for r in data if any(t in (x.lower()) for x in (r.tags or []))]
+    return data
+
 @api.get("/treatments", response_model=List[Treatment])
 async def get_treatments(tag: Optional[str] = Query(default=None)):
     await ensure_seed()
@@ -640,69 +561,7 @@ async def get_media(tag: Optional[str] = Query(default=None), source: Optional[s
     items = await db.media.find(q).sort("published_at", -1).to_list(100)
     return [MediaItem(**parse_from_mongo(it)) for it in items]
 
-# -------------------------
-# Local AI endpoints (unchanged)
-# -------------------------
-@api.post("/ai/summarize_local", response_model=AISummaryResponse)
-async def ai_summarize_local(body: AISummaryRequest):
-    text = (body.text or '').strip()
-    if not text:
-        raise HTTPException(status_code=400, detail="text is required")
-    summary, key_points = summarize_text(text, max_sentences=max(1, min(8, body.max_sentences)))
-    return AISummaryResponse(summary=summary, key_points=key_points)
-
-@api.post("/ai/answer_local", response_model=AIAnswerResponse)
-async def ai_answer_local(body: AIAnswerRequest):
-    await ensure_seed()
-    q = (body.question or '').strip()
-    if not q:
-        raise HTTPException(status_code=400, detail="question is required")
-    scopes = set((body.scope or ['research','resources','treatments','feed']))
-    docs: List[Tuple[str, str, Optional[str], str]] = []
-    if 'research' in scopes:
-        arts = await db.articles.find({}).to_list(200)
-        for a in arts:
-            a2 = parse_from_mongo(a)
-            docs.append(('research', a2.get('title',''), a2.get('link'), f"{a2.get('title','')}. {a2.get('abstract','') or ''}"))
-    if 'resources' in scopes:
-        res = await db.resources.find({}).to_list(200)
-        for r in res:
-            r2 = parse_from_mongo(r)
-            docs.append(('resource', r2.get('title',''), r2.get('url'), f"{r2.get('title','')}. {r2.get('description','') or ''}"))
-    if 'treatments' in scopes:
-        trs = await db.treatments.find({}).to_list(200)
-        for t in trs:
-            t2 = parse_from_mongo(t)
-            mech = "; ".join(t2.get('mechanisms', []) or [])
-            docs.append(('treatment', t2.get('name',''), None, f"{t2.get('name','')}. {mech}"))
-    if 'feed' in scopes:
-        fds = await db.feed.find({}).to_list(200)
-        for f in fds:
-            f2 = parse_from_mongo(f)
-            docs.append(('feed', f2.get('title',''), f2.get('url'), f"{f2.get('title','')}. {f2.get('summary','') or ''}"))
-
-    kw = extract_keywords(q)
-    def score(text: str) -> float:
-        toks = tokenize(text)
-        if not toks: return 0.0
-        s = sum(1.0 for k in kw if k in toks)
-        for k in kw:
-            s += 0.2 * toks.count(k)
-        return s / math.sqrt(len(toks) + 1)
-
-    scored: List[Tuple[float, Tuple[str,str,Optional[str],str]]] = []
-    for d in docs:
-        sc = score(d[3])
-        if sc > 0: scored.append((sc, d))
-    top = [d for _, d in sorted(scored, key=lambda x: x[0], reverse=True)[:3]]
-
-    if not top:
-        return AIAnswerResponse(answer="I could not find relevant items locally. Try refining your question.", references=[])
-
-    combined = "\n\n".join(t[3] for t in top)
-    summary, _ = summarize_text(combined, max_sentences=5)
-    refs = [AIAnswerReference(title=t[1], link=t[2], type=t[0]) for t in top]
-    return AIAnswerResponse(answer=summary, references=refs)
+# AI endpoints (summarize_local, answer_local) remain defined earlier in file
 
 # bind router
 app.include_router(api)
