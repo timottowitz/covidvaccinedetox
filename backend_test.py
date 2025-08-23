@@ -347,8 +347,8 @@ class BackendAPITester:
             self.log_result("Resources Thumbnail Generation", False, f"Request failed: {str(e)}")
         return False
 
-    def test_upload_with_thumbnail_generation(self):
-        """Test POST /api/resources/upload with thumbnail generation"""
+    def test_async_upload_workflow(self):
+        """Test new async upload workflow with 202 response and task tracking"""
         try:
             # Create a small test PDF content (minimal PDF structure)
             pdf_content = b"""%PDF-1.4
@@ -401,75 +401,221 @@ startxref
 299
 %%EOF"""
 
-            # Test PDF upload
-            files = {'file': ('test_thumbnail.pdf', pdf_content, 'application/pdf')}
+            # Test 1: PDF upload should return 202 with task_id and idempotency_key
+            files = {'file': ('test_async.pdf', pdf_content, 'application/pdf')}
             data = {
-                'title': 'Test PDF for Thumbnail',
-                'tags': 'test,pdf,thumbnail',
-                'description': 'Test PDF upload for thumbnail generation'
+                'title': 'Test Async PDF Upload',
+                'tags': 'test,pdf,async',
+                'description': 'Test async PDF upload workflow'
             }
+            headers = {'X-Idempotency-Key': 'test-pdf-upload-123'}
             
-            response = requests.post(f"{self.api_url}/resources/upload", files=files, data=data, timeout=30)
+            response = requests.post(f"{self.api_url}/resources/upload", files=files, data=data, headers=headers, timeout=30)
             
-            pdf_upload_success = False
-            pdf_thumbnail_url = None
-            
-            if response.status_code == 200:
+            if response.status_code == 202:
                 result = response.json()
-                if result.get('kind') == 'pdf' and result.get('title') == 'Test PDF for Thumbnail':
-                    pdf_upload_success = True
-                    pdf_thumbnail_url = result.get('thumbnail_url')
-                    self.log_result("PDF Upload", True, f"Thumbnail URL: {pdf_thumbnail_url}")
+                if 'task_id' in result and 'idempotency_key' in result and result.get('status') == 'pending':
+                    task_id = result['task_id']
+                    idempotency_key = result['idempotency_key']
+                    self.log_result("Async PDF Upload - 202 Response", True, f"Task ID: {task_id}, Status: {result.get('status')}")
+                    
+                    # Test 2: Check task status progression
+                    max_attempts = 30
+                    for attempt in range(max_attempts):
+                        time.sleep(1)  # Wait 1 second between checks
+                        status_response = requests.get(f"{self.api_url}/knowledge/task_status?task_id={task_id}", timeout=10)
+                        
+                        if status_response.status_code == 200:
+                            status_data = status_response.json()
+                            current_status = status_data.get('status')
+                            
+                            if current_status == 'completed':
+                                # Check for result field with ResourceItem data
+                                if 'result' in status_data and status_data['result']:
+                                    result_item = status_data['result']
+                                    if result_item.get('title') == 'Test Async PDF Upload' and result_item.get('kind') == 'pdf':
+                                        self.log_result("Task Status - PDF Completed", True, f"Task completed with result: {result_item.get('title')}")
+                                        break
+                                    else:
+                                        self.log_result("Task Status - PDF Completed", False, f"Invalid result data: {result_item}")
+                                        break
+                                else:
+                                    self.log_result("Task Status - PDF Completed", False, "Completed task missing result field")
+                                    break
+                            elif current_status == 'failed':
+                                error_msg = status_data.get('error_message', 'Unknown error')
+                                self.log_result("Task Status - PDF Failed", False, f"Task failed: {error_msg}")
+                                break
+                            elif attempt == max_attempts - 1:
+                                self.log_result("Task Status - PDF Timeout", False, f"Task stuck in {current_status} status after {max_attempts} seconds")
+                                break
+                        else:
+                            self.log_result("Task Status Check", False, f"Status endpoint returned {status_response.status_code}")
+                            break
+                    
+                    # Test 3: Idempotency - same key should return existing task
+                    response2 = requests.post(f"{self.api_url}/resources/upload", files=files, data=data, headers=headers, timeout=30)
+                    if response2.status_code == 202:
+                        result2 = response2.json()
+                        if result2.get('task_id') == task_id and result2.get('idempotency_key') == idempotency_key:
+                            self.log_result("Idempotency Test", True, "Same idempotency key returned existing task")
+                        else:
+                            self.log_result("Idempotency Test", False, f"Expected same task_id, got different: {result2}")
+                    else:
+                        self.log_result("Idempotency Test", False, f"Expected 202, got {response2.status_code}")
+                        
                 else:
-                    self.log_result("PDF Upload", False, f"Unexpected response: {result}")
+                    self.log_result("Async PDF Upload - 202 Response", False, f"Missing required fields in response: {result}")
             else:
-                self.log_result("PDF Upload", False, f"Expected 200, got {response.status_code}: {response.text}")
+                self.log_result("Async PDF Upload - 202 Response", False, f"Expected 202, got {response.status_code}: {response.text}")
 
-            # Note: Creating a valid MP4 is complex, so we'll test with a simple file
-            # and expect it might fail thumbnail generation but still upload successfully
-            mp4_content = b"fake mp4 content for testing"
-            
-            files = {'file': ('test_thumbnail.mp4', mp4_content, 'video/mp4')}
+            # Test 4: Video upload workflow
+            mp4_content = b"fake mp4 content for async testing"
+            files = {'file': ('test_async.mp4', mp4_content, 'video/mp4')}
             data = {
-                'title': 'Test MP4 for Thumbnail',
-                'tags': 'test,video,thumbnail',
-                'description': 'Test MP4 upload for thumbnail generation'
+                'title': 'Test Async Video Upload',
+                'tags': 'test,video,async',
+                'description': 'Test async video upload workflow'
             }
+            headers = {'X-Idempotency-Key': 'test-video-upload-456'}
             
-            response = requests.post(f"{self.api_url}/resources/upload", files=files, data=data, timeout=30)
+            response = requests.post(f"{self.api_url}/resources/upload", files=files, data=data, headers=headers, timeout=30)
             
-            mp4_upload_success = False
-            mp4_thumbnail_url = None
-            
-            if response.status_code == 200:
+            if response.status_code == 202:
                 result = response.json()
-                if result.get('kind') == 'video' and result.get('title') == 'Test MP4 for Thumbnail':
-                    mp4_upload_success = True
-                    mp4_thumbnail_url = result.get('thumbnail_url')
-                    self.log_result("MP4 Upload", True, f"Thumbnail URL: {mp4_thumbnail_url}")
+                if 'task_id' in result and 'idempotency_key' in result:
+                    video_task_id = result['task_id']
+                    self.log_result("Async Video Upload - 202 Response", True, f"Video Task ID: {video_task_id}")
+                    
+                    # Check video task status (don't wait as long since it might fail on fake content)
+                    time.sleep(2)
+                    status_response = requests.get(f"{self.api_url}/knowledge/task_status?task_id={video_task_id}", timeout=10)
+                    if status_response.status_code == 200:
+                        status_data = status_response.json()
+                        self.log_result("Video Task Status Check", True, f"Status: {status_data.get('status')}")
+                    else:
+                        self.log_result("Video Task Status Check", False, f"Status check failed: {status_response.status_code}")
                 else:
-                    self.log_result("MP4 Upload", False, f"Unexpected response: {result}")
+                    self.log_result("Async Video Upload - 202 Response", False, f"Missing required fields: {result}")
             else:
-                self.log_result("MP4 Upload", False, f"Expected 200, got {response.status_code}: {response.text}")
-
-            # Verify uploads appear in GET /api/resources
-            response = requests.get(f"{self.api_url}/resources", timeout=30)
-            if response.status_code == 200:
-                resources = response.json()
-                uploaded_pdf = next((r for r in resources if r.get('title') == 'Test PDF for Thumbnail'), None)
-                uploaded_mp4 = next((r for r in resources if r.get('title') == 'Test MP4 for Thumbnail'), None)
-                
-                verification_success = uploaded_pdf is not None and uploaded_mp4 is not None
-                details = f"PDF found: {uploaded_pdf is not None}, MP4 found: {uploaded_mp4 is not None}"
-                
-                self.log_result("Upload Verification", verification_success, details)
-                
-                return pdf_upload_success and mp4_upload_success and verification_success
-            else:
-                self.log_result("Upload Verification", False, f"Failed to verify uploads: {response.status_code}")
+                self.log_result("Async Video Upload - 202 Response", False, f"Expected 202, got {response.status_code}")
                 
         except Exception as e:
-            self.log_result("Upload with Thumbnail Generation", False, f"Request failed: {str(e)}")
+            self.log_result("Async Upload Workflow", False, f"Request failed: {str(e)}")
+        return False
+
+    def test_file_validation_limits(self):
+        """Test file size and MIME type validation"""
+        try:
+            # Test 1: File size limit (100MB)
+            large_content = b"x" * (101 * 1024 * 1024)  # 101MB
+            files = {'file': ('large_file.pdf', large_content, 'application/pdf')}
+            data = {'title': 'Large File Test'}
+            
+            response = requests.post(f"{self.api_url}/resources/upload", files=files, data=data, timeout=30)
+            
+            if response.status_code == 400:
+                error_data = response.json()
+                if 'size' in error_data.get('detail', '').lower():
+                    self.log_result("File Size Limit Test", True, f"Correctly rejected large file: {error_data.get('detail')}")
+                else:
+                    self.log_result("File Size Limit Test", False, f"Wrong error message: {error_data}")
+            else:
+                self.log_result("File Size Limit Test", False, f"Expected 400, got {response.status_code}")
+
+            # Test 2: Unsupported MIME type
+            txt_content = b"This is a text file"
+            files = {'file': ('test.txt', txt_content, 'text/plain')}
+            data = {'title': 'Text File Test'}
+            
+            response = requests.post(f"{self.api_url}/resources/upload", files=files, data=data, timeout=30)
+            
+            if response.status_code == 400:
+                error_data = response.json()
+                if 'type' in error_data.get('detail', '').lower() or 'allowed' in error_data.get('detail', '').lower():
+                    self.log_result("MIME Type Validation Test", True, f"Correctly rejected unsupported file type: {error_data.get('detail')}")
+                else:
+                    self.log_result("MIME Type Validation Test", False, f"Wrong error message: {error_data}")
+            else:
+                self.log_result("MIME Type Validation Test", False, f"Expected 400, got {response.status_code}")
+
+            # Test 3: Upload without file
+            response = requests.post(f"{self.api_url}/resources/upload", data={'title': 'No File Test'}, timeout=30)
+            
+            if response.status_code in [400, 422]:  # FastAPI might return 422 for missing required field
+                self.log_result("Missing File Test", True, f"Correctly rejected upload without file: {response.status_code}")
+            else:
+                self.log_result("Missing File Test", False, f"Expected 400/422, got {response.status_code}")
+                
+        except Exception as e:
+            self.log_result("File Validation Tests", False, f"Request failed: {str(e)}")
+        return False
+
+    def test_task_status_error_cases(self):
+        """Test task status endpoint error cases"""
+        try:
+            # Test invalid task_id
+            response = requests.get(f"{self.api_url}/knowledge/task_status?task_id=invalid-task-id-123", timeout=10)
+            
+            if response.status_code == 404:
+                error_data = response.json()
+                if 'not found' in error_data.get('detail', '').lower():
+                    self.log_result("Invalid Task ID Test", True, f"Correctly returned 404 for invalid task_id")
+                else:
+                    self.log_result("Invalid Task ID Test", False, f"Wrong error message: {error_data}")
+            else:
+                self.log_result("Invalid Task ID Test", False, f"Expected 404, got {response.status_code}")
+                
+            # Test missing task_id parameter
+            response = requests.get(f"{self.api_url}/knowledge/task_status", timeout=10)
+            
+            if response.status_code in [400, 422]:  # FastAPI returns 422 for missing required query param
+                self.log_result("Missing Task ID Test", True, f"Correctly rejected request without task_id: {response.status_code}")
+            else:
+                self.log_result("Missing Task ID Test", False, f"Expected 400/422, got {response.status_code}")
+                
+        except Exception as e:
+            self.log_result("Task Status Error Cases", False, f"Request failed: {str(e)}")
+        return False
+
+    def test_backwards_compatibility(self):
+        """Test that existing endpoints still work"""
+        try:
+            # Test GET /api/resources still works
+            response = requests.get(f"{self.api_url}/resources", timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                if isinstance(data, list):
+                    self.log_result("GET Resources Compatibility", True, f"Returned {len(data)} resources")
+                else:
+                    self.log_result("GET Resources Compatibility", False, "Expected array response")
+            else:
+                self.log_result("GET Resources Compatibility", False, f"Expected 200, got {response.status_code}")
+
+            # Test knowledge reconciliation endpoint
+            response = requests.post(f"{self.api_url}/knowledge/reconcile", timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                if 'updated' in data and isinstance(data['updated'], int):
+                    self.log_result("Knowledge Reconcile Compatibility", True, f"Updated {data['updated']} items")
+                else:
+                    self.log_result("Knowledge Reconcile Compatibility", False, f"Unexpected response: {data}")
+            else:
+                self.log_result("Knowledge Reconcile Compatibility", False, f"Expected 200, got {response.status_code}")
+
+            # Test knowledge status endpoint
+            response = requests.get(f"{self.api_url}/knowledge/status", timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                if 'files' in data and isinstance(data['files'], list):
+                    self.log_result("Knowledge Status Compatibility", True, f"Found {len(data['files'])} knowledge files")
+                else:
+                    self.log_result("Knowledge Status Compatibility", False, f"Unexpected response: {data}")
+            else:
+                self.log_result("Knowledge Status Compatibility", False, f"Expected 200, got {response.status_code}")
+                
+        except Exception as e:
+            self.log_result("Backwards Compatibility Tests", False, f"Request failed: {str(e)}")
         return False
 
     def test_external_url_thumbnail_handling(self):
