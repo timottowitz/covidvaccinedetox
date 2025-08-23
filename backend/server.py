@@ -463,7 +463,8 @@ def gemini_summarize_video_bg(file_path_str: str, title: str) -> Optional[str]:
             "",
             text
         ])
-        out = KNOWLEDGE_DIR / f"{uuid.uuid4()}_video.md"
+        slug = re.sub(r"[^a-zA-Z0-9_\-]+","-", (title or "video").lower()).strip('-')[:80] or "video"
+        out = _unique_knowledge_path(slug, suffix="_video")
         _write_markdown_atomic(out, md)
         try:
             client.files.delete(name=uploaded.name)
