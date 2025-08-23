@@ -189,6 +189,39 @@ class ResourceItem(BaseModel):
     knowledge_job_type: Optional[str] = None
 
 
+# -------------------------------------------------
+# Task Tracking Models
+# -------------------------------------------------
+class TaskStatus(str, Enum):
+    PENDING = "pending"
+    PROCESSING = "processing" 
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class TaskInfo(BaseModel):
+    task_id: str
+    idempotency_key: str
+    status: TaskStatus
+    created_at: datetime
+    updated_at: datetime
+    resource_filename: Optional[str] = None
+    resource_url: Optional[str] = None
+    result: Optional[ResourceItem] = None
+    error_message: Optional[str] = None
+
+
+class TaskResponse(BaseModel):
+    task_id: str
+    idempotency_key: str
+    status: TaskStatus = TaskStatus.PENDING
+    message: str = "Upload task created successfully"
+
+
+# In-memory task storage (for MVP - could be replaced with Redis/DB later)
+tasks_storage: Dict[str, TaskInfo] = {}
+
+
 class Treatment(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
