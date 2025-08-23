@@ -555,11 +555,17 @@ function Media() {
   const [videos] = useState([
     {
       id: 'FgKpMEowsh0',
-      title: 'COVID-19 Vaccine Discussion',
-      description: 'Important discussion about COVID-19 vaccines and their implications.',
+      title: 'Hydroxychloroquine and Ivermectin Discussion', 
+      description: 'Expert discussion on hydroxychloroquine and ivermectin as potential treatments for COVID-19.',
       url: 'https://www.youtube.com/watch?v=FgKpMEowsh0'
     }
-    // Additional videos can be added here
+    // Additional videos can be easily added to this array:
+    // {
+    //   id: 'VIDEO_ID_HERE',
+    //   title: 'Video Title',
+    //   description: 'Video description explaining the content.',
+    //   url: 'https://www.youtube.com/watch?v=VIDEO_ID_HERE'
+    // }
   ]);
 
   const getYouTubeEmbedUrl = (videoId) => {
