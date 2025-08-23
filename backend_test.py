@@ -150,6 +150,95 @@ class BackendAPITester:
             self.log_result("Research Sort by Citations", False, f"Request failed: {str(e)}")
         return False
 
+    def test_resources_endpoint(self):
+        """Test GET /api/resources"""
+        try:
+            response = requests.get(f"{self.api_url}/resources", timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                if isinstance(data, list) and len(data) > 0:
+                    # Check if resources have expected structure
+                    first_item = data[0]
+                    required_fields = ['id', 'title', 'url', 'kind', 'tags']
+                    if all(field in first_item for field in required_fields):
+                        # Check for at least one PDF and one video
+                        has_pdf = any(item.get('kind') == 'pdf' for item in data)
+                        has_video = any(item.get('kind') == 'video' for item in data)
+                        
+                        if has_pdf and has_video:
+                            self.log_result("Resources Endpoint", True, f"Returned {len(data)} resources with PDF and video")
+                            return True
+                        else:
+                            self.log_result("Resources Endpoint", False, f"Missing PDF ({has_pdf}) or video ({has_video}) resources")
+                    else:
+                        missing = [f for f in required_fields if f not in first_item]
+                        self.log_result("Resources Endpoint", False, f"Missing fields: {missing}")
+                else:
+                    self.log_result("Resources Endpoint", False, "Expected non-empty array")
+            else:
+                self.log_result("Resources Endpoint", False, f"Expected 200, got {response.status_code}")
+        except Exception as e:
+            self.log_result("Resources Endpoint", False, f"Request failed: {str(e)}")
+        return False
+
+    def test_resources_tag_filter(self):
+        """Test GET /api/resources?tag=gut"""
+        try:
+            response = requests.get(f"{self.api_url}/resources?tag=gut", timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                if isinstance(data, list):
+                    # Check that filtering works and at least one item has 'gut' tag
+                    if len(data) > 0:
+                        has_gut_tag = any(
+                            any('gut' in tag.lower() for tag in item.get('tags', []))
+                            for item in data
+                        )
+                        if has_gut_tag:
+                            self.log_result("Resources Tag Filter", True, f"Returned {len(data)} filtered resources with gut tag")
+                            return True
+                        else:
+                            self.log_result("Resources Tag Filter", False, "No items contain 'gut' in tags")
+                    else:
+                        self.log_result("Resources Tag Filter", True, "Filter returned empty list (acceptable)")
+                        return True
+                else:
+                    self.log_result("Resources Tag Filter", False, "Expected array response")
+            else:
+                self.log_result("Resources Tag Filter", False, f"Expected 200, got {response.status_code}")
+        except Exception as e:
+            self.log_result("Resources Tag Filter", False, f"Request failed: {str(e)}")
+        return False
+
+    def test_treatments_endpoint(self):
+        """Test GET /api/treatments"""
+        try:
+            response = requests.get(f"{self.api_url}/treatments", timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                if isinstance(data, list) and len(data) > 0:
+                    # Check if treatments have expected structure
+                    first_item = data[0]
+                    required_fields = ['name', 'mechanisms']
+                    if all(field in first_item for field in required_fields):
+                        # Check if any item has bundle_product field
+                        has_bundle = any('bundle_product' in item and item['bundle_product'] for item in data)
+                        details = f"Returned {len(data)} treatments"
+                        if has_bundle:
+                            details += " (includes bundle products)"
+                        self.log_result("Treatments Endpoint", True, details)
+                        return True
+                    else:
+                        missing = [f for f in required_fields if f not in first_item]
+                        self.log_result("Treatments Endpoint", False, f"Missing fields: {missing}")
+                else:
+                    self.log_result("Treatments Endpoint", False, "Expected non-empty array")
+            else:
+                self.log_result("Treatments Endpoint", False, f"Expected 200, got {response.status_code}")
+        except Exception as e:
+            self.log_result("Treatments Endpoint", False, f"Request failed: {str(e)}")
+        return False
+
     def test_status_endpoints(self):
         """Test POST and GET /api/status"""
         try:
