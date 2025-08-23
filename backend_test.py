@@ -719,28 +719,31 @@ startxref
             print("⚠️  Some backend tests failed. Check details above.")
             return False
 
-    def run_thumbnail_tests(self):
-        """Run thumbnail-specific tests as requested in review"""
-        print("🚀 Starting Thumbnail Generation Tests")
+    def run_async_upload_tests(self):
+        """Run async upload system tests as requested in review"""
+        print("🚀 Starting Async Upload System Tests")
         print(f"Testing against: {self.base_url}")
         print("=" * 50)
 
-        # Run thumbnail-specific tests
+        # Run async upload system tests
         self.test_health_endpoint()  # Verify /api/health returns ok
-        self.test_resources_thumbnail_generation()  # Test GET /api/resources with thumbnail generation
-        self.test_upload_with_thumbnail_generation()  # Test POST /api/resources/upload
+        self.test_async_upload_workflow()  # Test new async upload workflow
+        self.test_file_validation_limits()  # Test file size and MIME type limits
+        self.test_task_status_error_cases()  # Test task status error cases
+        self.test_backwards_compatibility()  # Test existing endpoints still work
+        self.test_resources_thumbnail_generation()  # Test thumbnail generation still works
         self.test_external_url_thumbnail_handling()  # Test edge cases with external URLs
         self.test_cors_and_route_prefixes()  # Confirm no changes to base route prefixes and CORS
 
         # Print summary
         print("\n" + "=" * 50)
-        print(f"📊 Thumbnail Test Results: {self.tests_passed}/{self.tests_run} tests passed")
+        print(f"📊 Async Upload Test Results: {self.tests_passed}/{self.tests_run} tests passed")
         
         if self.tests_passed == self.tests_run:
-            print("🎉 All thumbnail tests passed!")
+            print("🎉 All async upload tests passed!")
             return True
         else:
-            print("⚠️  Some thumbnail tests failed. Check details above.")
+            print("⚠️  Some async upload tests failed. Check details above.")
             return False
 
 def main():
