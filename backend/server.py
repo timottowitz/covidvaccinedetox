@@ -957,11 +957,17 @@ async def upload_resource(
             temp_res = ResourceItem(title=title or fname, filename=fname, ext=ext, url=url, kind=kind, tags=[t.strip() for t in (tags or '').split(',') if t.strip()], description=description, uploaded_at=datetime.fromisoformat(now_iso))
             thumb_url = ensure_thumbnail_for_resource(temp_res, prefer_time_sec=1.0)
         # Trigger background knowledge ingestion per user rules
+        knowledge_job_id = None
+        knowledge_job_type = None
         try:
             if background_tasks is not None:
                 if kind == 'pdf':
+                    knowledge_job_id = str(uuid.uuid4())
+                    knowledge_job_type = 'chunkr_pdf'
                     background_tasks.add_task(chunkr_ingest_pdf_bg, dest.as_posix(), title or fname, [t.strip() for t in (tags or '').split(',') if t.strip()], description)
                 elif kind == 'video':
+                    knowledge_job_id = str(uuid.uuid4())
+                    knowledge_job_type = 'gemini_video'
                     background_tasks.add_task(gemini_summarize_video_bg, dest.as_posix(), title or fname)
         except Exception as e:
             logging.getLogger(__name__).warning(f"Failed to enqueue background ingestion: {e}")
