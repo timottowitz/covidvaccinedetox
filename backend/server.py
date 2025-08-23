@@ -1010,7 +1010,7 @@ async def upload_resource(
                 if kind == 'pdf':
                     knowledge_job_id = str(uuid.uuid4())
                     knowledge_job_type = 'chunkr_pdf'
-                    background_tasks.add_task(chunkr_ingest_pdf_bg, dest.as_posix(), title or fname, [t.strip() for t in (tags or '').split(',') if t.strip()], description)
+                    background_tasks.add_task(chunkr_ingest_pdf_bg, dest.as_posix(), title or fname, [t.strip() for t in (tags or '').split(',') if t.strip()], description, fname, url)
                 elif kind == 'video':
                     knowledge_job_id = str(uuid.uuid4())
                     knowledge_job_type = 'gemini_video'
