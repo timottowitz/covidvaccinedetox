@@ -1019,8 +1019,10 @@ def fuzzy_match_resource(knowledge_file: Path, frontmatter: Dict[str, Any], reso
         
         # Title similarity (simple word overlap)
         if km_title and res_title:
-            km_words = set(km_title.split())
-            res_words = set(res_title.split())
+            # Clean up resource title by removing file extensions and splitting on common separators
+            res_title_clean = res_title.replace('.pdf', '').replace('.mp4', '').replace('.m4a', '').replace('.webm', '')
+            km_words = set(km_title.replace('-', ' ').split())
+            res_words = set(res_title_clean.replace('-', ' ').replace('_', ' ').split())
             if km_words and res_words:
                 overlap = len(km_words & res_words)
                 similarity = overlap / max(len(km_words), len(res_words))
