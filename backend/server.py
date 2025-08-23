@@ -1141,7 +1141,23 @@ def advanced_knowledge_reconcile() -> ReconcileResult:
                 
         # Save metadata if we made changes
         if result['linked'] or result['updated']:
-            meta['resources'] = resources
+            # Update the metadata.json file with the changes
+            meta = load_metadata_file()
+            meta_resources = meta.get('resources', [])
+            
+            # Update metadata resources with knowledge_url and knowledge_hash
+            for resource in resources:
+                if resource.get('knowledge_url') or resource.get('knowledge_hash'):
+                    # Find corresponding metadata resource and update it
+                    for meta_res in meta_resources:
+                        if (resource.get('filename') and meta_res.get('filename') == resource.get('filename')) or \
+                           (resource.get('url') and meta_res.get('url') == resource.get('url')):
+                            if resource.get('knowledge_url'):
+                                meta_res['knowledge_url'] = resource['knowledge_url']
+                            if resource.get('knowledge_hash'):
+                                meta_res['knowledge_hash'] = resource['knowledge_hash']
+                            break
+            
             save_metadata_file(meta)
             
     except Exception as e:
