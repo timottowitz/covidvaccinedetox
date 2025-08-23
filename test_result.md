@@ -203,9 +203,11 @@ metadata:
 
 test_plan:
   current_focus:
+    - "Frontend compatibility with async upload system"
+    - "Display resource thumbnails on cards"
+  stuck_tasks:
     - "Display resource thumbnails on cards"
     - "Frontend compatibility with async upload system"
-  stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
