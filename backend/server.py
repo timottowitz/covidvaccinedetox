@@ -980,7 +980,10 @@ async def upload_resource(
             tags=[t.strip() for t in (tags or '').split(',') if t.strip()],
             description=description,
             uploaded_at=datetime.fromisoformat(now_iso),
-            thumbnail_url=thumb_url
+            thumbnail_url=thumb_url,
+            knowledge_url=None,
+            knowledge_job_id=knowledge_job_id,
+            knowledge_job_type=knowledge_job_type
         )
         return item
     except Exception as e:
