@@ -489,7 +489,7 @@ def _unique_knowledge_path(slug: str, suffix: str = "") -> Path:
         i += 1
 
 
-def _update_metadata_knowledge(resource_filename: Optional[str], resource_url: Optional[str], knowledge_url: str) -> None:
+def _update_metadata_knowledge(resource_filename: Optional[str], resource_url: Optional[str], knowledge_url: str, knowledge_hash: Optional[str] = None) -> None:
     try:
         meta = load_metadata_file()
         resources = meta.get('resources', [])
@@ -497,6 +497,8 @@ def _update_metadata_knowledge(resource_filename: Optional[str], resource_url: O
         for r in resources:
             if (resource_filename and r.get('filename') == resource_filename) or (resource_url and r.get('url') == resource_url):
                 r['knowledge_url'] = knowledge_url
+                if knowledge_hash:
+                    r['knowledge_hash'] = knowledge_hash
                 updated = True
                 break
         if updated:
