@@ -110,6 +110,19 @@ export default function KnowledgeList(){
                   {selected.meta?.summary && <p style={{marginTop:8}}>{selected.meta.summary}</p>}
                 </CardHeader>
                 <CardContent>
+                  <div style={{display:'flex', gap:8, flexWrap:'wrap', marginBottom:8}}>
+                    {/* Copy summary button */}
+                    {selected.meta?.summary && (
+                      <Button size="sm" variant="outline" onClick={()=>{navigator.clipboard.writeText(selected.meta.summary)}}>Copy Summary</Button>
+                    )}
+                    {/* Copy citation */}
+                    <Button size="sm" variant="outline" onClick={()=>{
+                      const title = selected.meta?.title || selected.filename;
+                      const date = selected.meta?.date || '';
+                      const cite = `${title} — ${date} — ${window.location.origin}${selected.url || selected.href || selected.path || ''}`;
+                      navigator.clipboard.writeText(cite);
+                    }}>Copy Citation</Button>
+                  </div>
                   <div className="prose" style={{maxWidth:'100%'}}>
                     <ReactMarkdown>{md}</ReactMarkdown>
                   </div>
