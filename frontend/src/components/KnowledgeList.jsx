@@ -85,6 +85,12 @@ export default function KnowledgeList(){
                 </CardHeader>
                 <CardContent>
                   <div className="card-meta">{new Date(f.modified).toLocaleString()} • {(f.size/1024).toFixed(1)} KB</div>
+                  <div style={{display:'flex',gap:8,marginTop:8,flexWrap:'wrap'}}>
+                    {/* Quick anchors for chunks 1..5 if present */}
+                    {[1,2,3,4,5].map(n => (
+                      <Button key={n} variant="outline" size="sm" onClick={(e)=>{e.stopPropagation(); if(selected?.filename!==f.filename) {open(f).then(()=> setTimeout(()=>{document.getElementById(`c-${n}`)?.scrollIntoView({behavior:'smooth', block:'start'});},400));} else {document.getElementById(`c-${n}`)?.scrollIntoView({behavior:'smooth', block:'start'});} }}>Chunk {n}</Button>
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
             ))}
