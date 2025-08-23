@@ -368,7 +368,24 @@ def _unique_knowledge_path(slug: str, suffix: str = "") -> Path:
         i += 1
 
 
-def chunkr_ingest_pdf_bg(file_path_str: str, title: str, tags: List[str], description: Optional[str]) -> Optional[str]:
+def _update_metadata_knowledge(resource_filename: Optional[str], resource_url: Optional[str], knowledge_url: str) -> None:
+    try:
+        meta = load_metadata_file()
+        resources = meta.get('resources', [])
+        updated = False
+        for r in resources:
+            if (resource_filename and r.get('filename') == resource_filename) or (resource_url and r.get('url') == resource_url):
+                r['knowledge_url'] = knowledge_url
+                updated = True
+                break
+        if updated:
+            meta['resources'] = resources
+            save_metadata_file(meta)
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"_update_metadata_knowledge error: {e}")
+
+
+def chunkr_ingest_pdf_bg(file_path_str: str, title: str, tags: List[str], description: Optional[str], resource_filename: Optional[str] = None, resource_url: Optional[str] = None) -> Optional[str]:
     if not CHUNKR_API_KEY:
         return None
     try:
