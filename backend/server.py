@@ -425,7 +425,9 @@ def chunkr_ingest_pdf_bg(file_path_str: str, title: str, tags: List[str], descri
             chunks_md
         ]
         md = "\n".join(md_lines)
-        out = KNOWLEDGE_DIR / f"{ingest_id}.md"
+        # make nice slug from title
+        slug = re.sub(r"[^a-zA-Z0-9_\-]+","-", (title_md or "document").lower()).strip('-')[:80] or "document"
+        out = _unique_knowledge_path(slug)
         _write_markdown_atomic(out, md)
         return f"/knowledge/{out.name}"
     except Exception as e:
