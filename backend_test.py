@@ -283,6 +283,9 @@ class BackendAPITester:
         self.test_feed_with_tag_filter()
         self.test_research_endpoint()
         self.test_research_sort_by_citations()
+        self.test_resources_endpoint()
+        self.test_resources_tag_filter()
+        self.test_treatments_endpoint()
         self.test_status_endpoints()
 
         # Print summary
