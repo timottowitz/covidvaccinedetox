@@ -1,90 +1,141 @@
 <analysis>
-The previous AI engineer successfully bootstrapped a full-stack mRNA vaccine knowledge base application using React, FastAPI, and MongoDB. The development followed an iterative approach, delivering core features in phases, starting with basic page structures and then enhancing content management and dynamic functionalities. Key decisions included adhering to the specified tech stack despite a user's initial query about Convex, implementing graceful fallbacks for third-party integrations (ShopRocket CDN), and developing local AI features when an external LLM key was unavailable. The process involved extensive use of  for initial setup and  for incremental changes, with  and  consistently employed for validation and debugging. The work progressed from foundational UI and API endpoints to dynamic content feeds, resource management (upload, edit, delete with auto-scan), and local AI-powered summarization and Q&A. The final state provides a robust platform for content delivery and management, with several advanced features pending.
+The previous AI engineer effectively bootstrapped and enhanced a full-stack mRNA vaccine knowledge base application using React, FastAPI, and MongoDB. The trajectory shows a systematic approach, starting with core features and iteratively adding complex functionalities. Key initial achievements included a robust UI with shadcn/ui, API endpoints for various content types, MongoDB seeding, and local AI summarization/Q&A.
+
+Subsequent major efforts focused on improving resource management. This involved implementing server-side thumbnail generation for PDFs and videos (PyMuPDF, OpenCV/Pillow), integrating  for PDF ingestion, and Google Gemini (Vertex AI) for video summarization. The output of these AI services is stored as markdown files in a  directory, forming a new knowledge base. A dedicated frontend Knowledge page was built to browse and preview these markdown files, complete with frontmatter rendering, chunk anchors, and copy functionality.
+
+The engineer also focused on operational robustness and user experience: hardening a periodic reconciliation script to decouple it from frontend environment variables, and implementing app-wide error boundaries and global error listeners to gracefully handle browser extension errors (e.g., MetaMask) that were causing UI crashes.
+
+Most recently, the focus shifted to enhancing the  endpoint for better resilience. The engineer is in the process of refactoring this endpoint to always return a  status with a  and , enforce server-side size and MIME type limits, and provide a  endpoint for monitoring background processing. This transition to an asynchronous task model is crucial for handling long-running external AI integrations.
 </analysis>
 
 <product_requirements>
-The goal is to build an authority-level website for deep-dive education on mRNA COVID vaccines, targeting patients, caregivers, medical professionals, and researchers. The site aims to be the go-to resource for understanding mRNA vaccine risks, mechanisms, and spike protein pathology.
+The overarching goal is to establish an authoritative online platform for comprehensive education on mRNA COVID vaccines, catering to patients, caregivers, medical professionals, and researchers. The site is designed to be a primary resource for understanding vaccine risks, mechanisms, and spike protein pathology.
 
-**Core Features Implemented/Planned:**
-1.  **Main Pages:** Home (vertical feed), About, Shop (ShopRocket integration), Research Articles (dynamic feed, filters, sorting), Treatments (evidence-backed protocols), Media (video-rich, Instagram-style feed).
-2.  **Bioweapon Resources:** Folder-based content () for PDFs, videos, audio. Auto-rendering system to display files as cards with icons, titles, download/preview options, and tags. This includes auto-scanning, uploading, editing, and deleting resources.
-3.  **Dynamic Research Articles Page:** Displays articles with title, author, date, DOI, abstract, keywords, and tags. Features filtering by tag, sorting, and Read More functionality. Includes RSS sync for PubMed, medRxiv, bioRxiv.
-4.  **Treatments Page:** Displays treatment protocols with name, mechanisms, dosage, links to studies, and user testimonials. Integrates with the Shop for product bundles.
-5.  **Media Page:** Instagram/YouTube-style feed with embedded videos, titles, descriptions, and source/timestamps.
-6.  **Shop Page:** Fully integrated with ShopRocket.io (store ID: ), displaying products and enabling e-commerce functionalities, with a graceful fallback if the CDN is blocked.
-7.  **AI Features (Local):** Extractive summarization for research articles and a global Q&A dialog, providing answers grounded in site content.
+**Implemented Features include:**
+1.  **Main Pages:** Home (vertical feed), About, Shop (integrated with ShopRocket.io, including a fallback for CDN issues), Research Articles (dynamic feed with filters, sorting), Treatments (evidence-backed protocols), and Media (video-rich, Instagram-style feed).
+2.  **Bioweapon Resources:** A system for managing folder-based content (), featuring auto-scanning, upload, inline editing, and deletion of files (PDFs, videos, audio) with associated . Thumbnail generation for PDFs (PyMuPDF) and videos (OpenCV/Pillow) has been added. PDFs are processed by  and videos by Google Gemini for content ingestion and summarization into markdown.
+3.  **Dynamic Research Articles:** Displays articles with rich metadata, supporting filtering, sorting, and Read More. RSS sync for PubMed, medRxiv, bioRxiv is planned.
+4.  **Treatments Page:** Protocols with mechanisms, dosages, study links, and Shop integration.
+5.  **Media Page:** Embedded YouTube/Vimeo videos with filtering.
+6.  **AI Features:** Local extractive summarization for research articles and a global Q&A grounded in site content.
+7.  **Knowledge Base:** A new section on the frontend displays markdown files generated from Chunkr/Gemini processing, including rich rendering of frontmatter, chunk anchors, and copy-to-clipboard functionality.
+8.  **Robustness:** Hardened reconciliation script, app-wide error handling for browser extensions, and ongoing work on an idempotent, asynchronous upload API with limits.
 </product_requirements>
 
 <key_technical_concepts>
--   **Full-stack Development:** React (frontend), FastAPI (backend), MongoDB (database).
--   **UI/UX:** shadcn/ui components, Tailwind CSS for styling,  for icons, modern design principles (gradients, spacing, micro-animations).
--   **Data Handling:** UUIDs for MongoDB IDs, timezone-aware datetimes, ISO string serialization for date/time.
--   **API Integration:** ShopRocket.io CDN integration with graceful fallback, local text processing for AI features.
--   **Routing:** React Router DOM for frontend navigation,  prefix for all backend routes (Kubernetes ingress).
--   **Content Management:** Folder-driven resource ingestion with , multipart file uploads, server-side file management.
+-   **Full-stack:** React (frontend), FastAPI (backend), MongoDB (database).
+-   **UI/UX:** shadcn/ui, Tailwind CSS, , modern design.
+-   **Data Management:** UUIDs for IDs, timezone-aware datetimes.
+-   **API Integrations:** ShopRocket.io,  for PDF, Google Gemini (Vertex AI) for video.
+-   **File Processing:** PyMuPDF, OpenCV (headless), Pillow, .
+-   **Content Rendering:** .
+-   **Concurrency:** FastAPI BackgroundTasks.
+-   **Error Handling:** React ErrorBoundary, global error listeners.
+-   **Deployment:** Kubernetes ingress ( prefix), environment variables, supervisor.
 </key_technical_concepts>
 
 <code_architecture>
 
 
-
 -   
-    -   **Importance:** This is the core FastAPI backend application. It handles all API endpoints, database interactions, and business logic.
+    -   **Importance:** Provides a template for environment variables used across the application, especially for backend secrets and URLs.
+    -   **Changes Made:** Created to centralize , ,  and ensure scripts are decoupled from frontend .
+-   
+    -   **Importance:** The central FastAPI backend, handling all API endpoints, database interactions, and business logic.
     -   **Changes Made:**
-        -   Defined multiple API endpoints: , , , , , , , , , , .
-        -   Implemented MongoDB seeding for initial data for feed, research, resources, treatments, and media.
-        -   Integrated Pydantic models for request/response validation and UUID/datetime serialization.
-        -   Added logic for parsing  and scanning the actual folder for resources.
-        -   Implemented local extractive text processing functions for summarization and Q&A.
-        -   Added file upload, metadata update, and file deletion logic for resources.
+        -   Extensive updates for thumbnail generation (, , ).
+        -   Integrated  and  functions using FastAPI  for asynchronous content processing.
+        -   Added logic to update  directly with  upon background task completion for deterministic matching.
+        -   Implemented  to list processed markdown files and  for manual reconciliation.
+        -   Refactoring  to be an asynchronous task endpoint, returning  with  and , enforcing size/MIME limits, and streaming uploads to disk.
 -   
-    -   **Importance:** The main React component, responsible for client-side routing, layout, data fetching, and rendering all pages.
+    -   **Importance:** Main React component for routing, layout, and rendering.
     -   **Changes Made:**
-        -   Set up React Router DOM for navigation to Home (), Research (), Shop (), Resources (), Treatments (), and Media ().
-        -   Implemented UI for each page using shadcn/ui components (Input, Popover, Calendar, Toaster, Select, Dialog, AspectRatio, etc.).
-        -   Integrated API calls to the FastAPI backend using .
-        -   Implemented ShopRocket.io integration with a graceful fallback mechanism for product display when CDN access is blocked.
-        -   Added UI for resource management: upload card, edit/delete dialogs for resources.
-        -   Incorporated local AI features: Summarize button on research articles and a global Ask dialog.
+        -   Integrated  for new  route.
+        -   Added a Knowledge navigation link in the header.
+        -   Wrapped all routes with  to catch and ignore browser extension errors.
+        -   Restored definitions for page components (Home, Research, etc.) to fix runtime errors.
 -   
-    -   **Importance:** Contains global and component-specific styles, primarily using Tailwind CSS directives, ensuring a modern and consistent UI/UX.
-    -   **Changes Made:** Applied modern neutral color palettes, pill-shaped buttons, micro-animations, generous spacing, and custom styles adhering to design guidelines.
+    -   **Importance:** New React component to display and preview generated markdown knowledge files.
+    -   **Changes Made:** Created to fetch and render markdown from  using . Includes client-side frontmatter parsing for a styled header, chunk anchors for navigation, and copy buttons for summary and citation.
 -   
-    -   **Importance:** A JSON file used by the backend to store metadata (title, tags, description, URL, etc.) for resources found in the  folder. This allows for manual content curation and provides rich data for the frontend display.
-    -   **Changes Made:** Created and updated with sample entries and dynamically modified by upload/edit actions.
--    & 
-    -   **Importance:** Manage Python and Node.js dependencies for the backend and frontend, respectively.
-    -   **Changes Made:** Updated as necessary for new libraries (e.g.,  for file uploads,  for JSON processing).
+    -   **Importance:** Catches JavaScript errors in its child component tree, preventing UI crashes.
+    -   **Changes Made:** Created to specifically handle and ignore known errors from browser extensions (e.g., MetaMask) while providing a fallback UI for genuine app errors.
 -   
-    -   **Importance:** Entry point for global Tailwind CSS directives and base styles.
-    -   **Changes Made:** Ensures Tailwind base, components, and utilities are applied, and sets global styles for background and foreground colors.
+    -   **Importance:** Stores metadata for resources, dynamically updated by uploads and AI processing.
+    -   **Changes Made:** Extended  schema to include , , , .
+-   
+    -   **Importance:** New directory for storing generated PDF and video thumbnails.
+-   
+    -   **Importance:** New directory for storing markdown files generated by Chunkr.ai and Gemini.
+-   
+    -   **Importance:** Manages Python dependencies.
+    -   **Changes Made:** Added usage: pymupdf [-h]
+               {show,clean,join,extract,embed-info,embed-add,embed-del,embed-upd,embed-extract,embed-copy,gettext,internal}
+               ...
 
+------------------------- Basic PyMuPDF Functions -------------------------
+
+options:
+  -h, --help            show this help message and exit
+
+Subcommands:
+  {show,clean,join,extract,embed-info,embed-add,embed-del,embed-upd,embed-extract,embed-copy,gettext,internal}
+                        Enter 'command -h' for subcommand specific help, , , , , , .
+-   
+    -   **Importance:** Manages Node.js/React dependencies.
+    -   **Changes Made:** Added  (and potentially  for warnings).
+-   
+    -   **Importance:** Shell script for periodic reconciliation of knowledge files.
+    -   **Changes Made:** Rewritten for robustness: reads  from repo root  (not frontend's), uses  with retries, and explicit error handling.
+-   
+    -   **Importance:** Project documentation.
+    -   **Changes Made:** Updated with Operations and Environment Setup sections, detailing the new reconcile script usage, knowledge generation flow, and API key management.
+-   
+    -   **Importance:** Frontend entry point.
+    -   **Changes Made:** Added global  and  listeners to suppress known browser extension errors.
 </code_architecture>
 
 <pending_tasks>
--   Generate PDF and video thumbnails server-side for Resources.
 -   Implement drag-and-drop uploader for multiple files (bulk import).
 -   Add resource tagging rules (auto-tag based on filename patterns).
 -   Implement scheduled Research RSS sync with New badges.
 -   Upgrade local AI features to use external LLM with .
 -   Enrich Media page with  poster images and durations.
 -   Future: Newsletter, Community Forum, Interactive Timeline, PWA.
+-   Implement  for streaming markdown in Ask dialog and Research summaries for better UX.
 </pending_tasks>
 
 <current_work>
-The application currently provides a comprehensive authority-level website for mRNA vaccine education. All main pages (Home, Research, Shop, Resources, Treatments, Media) are live and functional. The backend features robust API endpoints for each content type, with data seeded in MongoDB, using UUIDs for IDs and handling datetimes correctly. The frontend, built with React and shadcn/ui, offers a clean, modern UI with responsive design.
+The application currently provides an authoritative platform for mRNA vaccine education with all main pages (Home, Research, Shop, Resources, Treatments, Media) functional. The most recent focus has been on enhancing the Resources section and overall application robustness.
 
-Specifically:
--   **Resources Hub:** This is the most recently enhanced section. It now features an auto-scanning capability that combines entries from  with any files directly present in the  folder. Users can upload new files via a dedicated card, and these files are saved to the public folder, with their metadata updated in . Each resource card supports inline editing of title, tags, and description, as well as deletion, which removes both the metadata entry and the physical file. Previews for PDF, video, and audio files are available via dialogs.
--   **AI Features:** Local, extractive summarization for research articles is integrated, accessible via a Summarize button on each article. A global Ask dialog allows users to ask questions, receiving answers grounded in the site's content (research, resources, treatments, feed), without requiring an external LLM key.
--   **Shop:** The ShopRocket.io integration is in place, with a fallback mechanism that displays sample products if the CDN for the widget is blocked, ensuring a functional user experience regardless of external script availability.
--   **Media Page:** Displays embedded YouTube and Vimeo videos in a scrollable, responsive grid, complete with tag and source filtering.
--   **Research Page:** Supports tag filtering and sorting by date or citation count, with a manual refresh option for the feed.
--   **Treatments Page:** Lists treatment protocols with mechanisms, dosages, and links to studies, including call-to-action buttons for related product bundles that link to the shop.
+**Key implementations include:**
+-   **Thumbnail Generation:** Server-side generation of 480x270 JPEG thumbnails for uploaded PDF (via PyMuPDF) and video (via OpenCV/Pillow) files. Thumbnails are saved to  and displayed on resource cards.
+-   **Knowledge Generation Pipeline:** On file upload in the Resources section:
+    -   PDFs are automatically ingested by  (using ).
+    -   Videos are summarized by Google Gemini (Vertex AI, using ).
+    -   Both processes run asynchronously as FastAPI .
+    -   The generated structured markdown files are saved to .
+-   **Knowledge UI:**
+    -   A new Knowledge page () lists these markdown files.
+    -   The preview functionality () renders the markdown, including a styled header parsed from YAML frontmatter (title, date, type, tags, summary).
+    -   The preview also features chunk anchors for quick navigation within the document and Copy Summary and Copy Citation buttons.
+    -   Resource cards dynamically show an Open Knowledge button when  is available or a Processing: chunkr_pdf/gemini_video badge during background ingestion.
+-   **Reconciliation:**
+    -    is deterministically updated with  as soon as background tasks complete.
+    -   A manual reconciliation endpoint () and automatic reconciliation on  ensure s are consistently set.
+    -   A robust, cron-friendly shell script () has been added for periodic reconciliation.
+-   **Error Handling & Robustness:**
+    -   An  component has been implemented and wrapped around all React routes to catch and gracefully handle UI errors, specifically ignoring common issues from browser extensions (like MetaMask) to prevent app crashes.
+    -   Global  and  listeners in  further suppress noisy extension-related console messages.
+-   **Upload API Refactoring (In Progress):** The  endpoint is being refactored to:
+    -   Always return  status with a  and .
+    -   Enforce server-side limits: max 100 MB file size and specific MIME types (PDF, MP4, QuickTime, WebM).
+    -   Provide a  endpoint for checking the status of background ingestion tasks.
 
-Backend text processing functions (, , , , ) have been fully defined and lint warnings resolved. The application is stable, with all endpoints passing smoke tests and UI navigation validated.
+The system is stable, with all existing functionalities verified, and the focus is on completing the robust upload mechanism.
 </current_work>
 
 <optional_next_step>
-Implement thumbnail generation for PDF and video resources on the Resources page.
+Complete the refactoring of the  endpoint to ensure it always returns  with  and , enforces limits, and test the new  endpoint.
 </optional_next_step>

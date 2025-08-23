@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 
 class BackendAPITester:
-    def __init__(self, base_url="https://vaccine-education.preview.emergentagent.com"):
+    def __init__(self, base_url="https://research-vault-2.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
         self.tests_run = 0
