@@ -64,7 +64,7 @@ def summarize_text(text: str, max_sentences: int = 5) -> Tuple[str, List[str]]:
         return "", []
     scores, weights = score_sentences(text)
     if not scores:
-        return (text.split("\n")[0][:280] + ("..." if len(text) &gt; 280 else "")), []
+        return (text.split("\n")[0][:280] + ("..." if len(text) > 280 else "")), []
     top = sorted(scores, key=lambda x: x[1], reverse=True)[:max_sentences]
     # restore original order for readability
     sents = sentence_split(text)
