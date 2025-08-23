@@ -21,12 +21,32 @@ export default function KnowledgeList(){
     } finally { setLoading(false); }
   };
 
+  const parseFrontmatter = (text) => {
+    if (!text.startsWith('---')) return { meta: null, body: text };
+    const end = text.indexOf('\n---');
+    if (end === -1) return { meta: null, body: text };
+    const raw = text.substring(3, end).trim();
+    const body = text.substring(end + 4).trimStart();
+    const meta = {};
+    raw.split('\n').forEach(line => {
+      const idx = line.indexOf(':');
+      if (idx > -1) {
+        const k = line.substring(0, idx).trim();
+        const v = line.substring(idx + 1).trim();
+        meta[k] = v.replace(/^"|"$/g, '');
+      }
+    });
+    return { meta, body };
+  };
+
   const open = async (f) => {
     setSelected(f);
     try{
       const res = await fetch(f.url);
       const txt = await res.text();
-      setMd(txt);
+      const { meta, body } = parseFrontmatter(txt);
+      setMd(body);
+      setSelected({ ...f, meta });
     } catch {
       setMd('# Failed to load');
     }
