@@ -303,6 +303,13 @@ function ResourceCard({r, onChanged}){
         <div className="card-meta">{r.ext?.toUpperCase()} • {new Date(r.uploaded_at).toLocaleDateString()}</div>
       </CardHeader>
       <CardContent>
+        {r.thumbnail_url && (
+          <div style={{marginBottom:12}}>
+            <AspectRatio ratio={16/9}>
+              <img src={r.thumbnail_url} alt={r.title} style={{width:'100%', height:'100%', objectFit:'cover', borderRadius:8}} />
+            </AspectRatio>
+          </div>
+        )}
         <p>{r.description}</p>
         <div style={{marginTop:12}}>
           {(r.tags||[]).map(t => <span key={t} className="tag">{t}</span>)}
@@ -468,62 +475,6 @@ function Media(){
                 {item.description && <p style={{marginBottom:8}}>{item.description}</p>}
                 <div style={{marginBottom:12}}>
                   {(item.tags||[]).map(t => <span key={t} className="tag">#{t}</span>)}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-      <Toaster />
-    </>
-  )
-}
-
-function Treatments(){
-  const api = useApi();
-  const [items, setItems] = useState([]);
-  const [searchParams, setSearchParams] = useSearchParams();
-  const tag = searchParams.get('tag') || '';
-
-  useEffect(() => { (async () => {
-    try {
-      const {data} = await api.get(`/treatments${tag ? `?tag=${encodeURIComponent(tag)}`: ''}`);
-      setItems(data);
-    } catch (e) {
-      toast({title:'Load failed', description:'Could not load treatments'});
-    }
-  })(); }, [tag]);
-
-  return (
-    <>
-      <Header />
-      <div className="container">
-        <div className="grid">
-          <Card className="card" style={{gridColumn:'span 12'}}>
-            <CardContent>
-              <div style={{display:'flex', gap:12, alignItems:'center', flexWrap:'wrap'}}>
-                <Input placeholder="Filter by tag (e.g., NAC)" value={tag} onChange={e => setSearchParams({tag: e.target.value})} style={{maxWidth:260}} />
-              </div>
-            </CardContent>
-          </Card>
-
-          {items.map(t => (
-            <Card key={t.id} className="card fade-in">
-              <CardHeader>
-                <CardTitle className="card-title">{t.name}</CardTitle>
-                <div className="card-meta">{(t.tags||[]).map(x => <span key={x} className="tag">{x}</span>)}</div>
-              </CardHeader>
-              <CardContent>
-                <div style={{marginBottom:8}}>
-                  <strong>Mechanisms:</strong>
-                  <ul style={{marginTop:8, paddingLeft:18}}>
-                    {(t.mechanisms||[]).map((m,i) => <li key={i} style={{marginBottom:4}}>{m}</li>)}
-                  </ul>
-                </div>
-                {t.dosage && <p style={{marginBottom:4}}><strong>Dosage:</strong> {t.dosage}</p>}
-                {t.duration && <p style={{marginBottom:8}}><strong>Duration:</strong> {t.duration}</p>}
-                <div style={{display:'flex', gap:12, flexWrap:'wrap'}}>
-                  {(t.links||[]).map((l,i) => <a key={i} className="pill" href={l} target="_blank" rel="noreferrer">Study <ExternalLink size={16} style={{marginLeft:8}}/></a>)}
                 </div>
               </CardContent>
             </Card>

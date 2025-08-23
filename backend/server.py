@@ -34,8 +34,10 @@ STOPWORDS = {
 def tokenize(text: str) -> List[str]:
     return [w.lower() for w in WORD_RE.findall(text or '')]
 
+
 def sentence_split(text: str) -> List[str]:
     return re.split(SENT_SPLIT_RE, text.strip()) if text else []
+
 
 def score_sentences(text: str) -> Tuple[List[Tuple[int, float]], Dict[str, float]]:
     sentences = sentence_split(text)
@@ -56,30 +58,32 @@ def score_sentences(text: str) -> Tuple[List[Tuple[int, float]], Dict[str, float
         scores.append((idx, score))
     return scores, weights
 
+
 def summarize_text(text: str, max_sentences: int = 5) -> Tuple[str, List[str]]:
     if not text:
         return "", []
     scores, weights = score_sentences(text)
     if not scores:
-        return (text.split("\n")[0][:280] + ("..." if len(text) > 280 else "")), []
+        return (text.split("\n")[0][:280] + ("..." if len(text) &gt; 280 else "")), []
     top = sorted(scores, key=lambda x: x[1], reverse=True)[:max_sentences]
     # restore original order for readability
     sents = sentence_split(text)
     top_sorted = [s for i, s in sorted([(i, sents[i]) for i, _ in top], key=lambda x: x[0])]
     summary = " ".join(top_sorted)
-    top_keywords = [w for w, _ in sorted(weights.items(), key=lambda kv: kv[1], reverse=True)[:6] if len(w) > 3]
+    top_keywords = [w for w, _ in sorted(weights.items(), key=lambda kv: kv[1], reverse=True)[:6] if len(w) &gt; 3]
     key_points = [f"{w.capitalize()}" for w in top_keywords]
     return summary, key_points
 
+
 def extract_keywords(q: str, top_k: int = 6) -> List[str]:
-    tokens = [t for t in tokenize(q) if t not in STOPWORDS and len(t) > 3]
+    tokens = [t for t in tokenize(q) if t not in STOPWORDS and len(t) &gt; 3]
     freqs: Dict[str, int] = {}
     for t in tokens:
         freqs[t] = freqs.get(t, 0) + 1
     return [w for w, _ in sorted(freqs.items(), key=lambda kv: kv[1], reverse=True)[:top_k]]
 
 # -------------------------------------------------
-# Env & DB
+# Env &amp; DB
 # -------------------------------------------------
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -91,6 +95,7 @@ db = client[os.environ['DB_NAME']]
 # -------------------------------------------------
 # Helpers for Mongo Serialization
 # -------------------------------------------------
+
 
 def prepare_for_mongo(data: dict) -> dict:
     if data is None:
@@ -121,7 +126,7 @@ def parse_from_mongo(item: dict) -> dict:
     return d
 
 # -------------------------------------------------
-# App & Router
+# App &amp; Router
 # -------------------------------------------------
 app = FastAPI()
 api = APIRouter(prefix="/api")
@@ -134,8 +139,10 @@ class StatusCheck(BaseModel):
     client_name: str
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+
 class StatusCheckCreate(BaseModel):
     client_name: str
+
 
 class FeedItem(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -146,6 +153,7 @@ class FeedItem(BaseModel):
     tags: List[str] = []
     published_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     source: Optional[str] = None
+
 
 class ResearchArticle(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -159,6 +167,7 @@ class ResearchArticle(BaseModel):
     tags: List[str] = []
     citation_count: int = 0
 
+
 class ResourceItem(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     title: str
@@ -169,6 +178,8 @@ class ResourceItem(BaseModel):
     tags: List[str] = []
     description: Optional[str] = None
     uploaded_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    thumbnail_url: Optional[str] = None
+
 
 class Treatment(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -180,6 +191,7 @@ class Treatment(BaseModel):
     tags: List[str] = []
     bundle_product: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 
 class MediaItem(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -195,18 +207,22 @@ class AISummaryRequest(BaseModel):
     text: Optional[str] = None
     max_sentences: int = 5
 
+
 class AISummaryResponse(BaseModel):
     summary: str
     key_points: List[str]
+
 
 class AIAnswerRequest(BaseModel):
     question: str
     scope: Optional[List[str]] = None
 
+
 class AIAnswerReference(BaseModel):
     title: str
     link: Optional[str] = None
     type: str
+
 
 class AIAnswerResponse(BaseModel):
     answer: str
@@ -302,7 +318,7 @@ async def ensure_seed():
     if media_count == 0:
         sample_media = [
             MediaItem(title='Spike Protein Lecture Clip',description='Overview of spike-induced pathways (demo).',source='YouTube',url='https://www.youtube.com/embed/dQw4w9WgXcQ',tags=['spike','lecture']).model_dump(),
-            MediaItem(title='Mitochondria & Energy',description='Mitochondrial function overview (demo).',source='Vimeo',url='https://player.vimeo.com/video/76979871',tags=['mitochondria','energy']).model_dump(),
+            MediaItem(title='Mitochondria &amp; Energy',description='Mitochondrial function overview (demo).',source='Vimeo',url='https://player.vimeo.com/video/76979871',tags=['mitochondria','energy']).model_dump(),
         ]
         sample_media = [prepare_for_mongo(it) for it in sample_media]
         await db.media.insert_many(sample_media)
@@ -313,6 +329,8 @@ async def ensure_seed():
 PUBLIC_RESOURCES_DIR = ROOT_DIR.parent / 'frontend' / 'public' / 'resources' / 'bioweapons'
 SAMPLE_RESEARCH_JSON = ROOT_DIR.parent / 'frontend' / 'public' / 'data' / 'research-feed.json'
 PUBLIC_RESOURCES_DIR.mkdir(parents=True, exist_ok=True)
+THUMBS_DIR = PUBLIC_RESOURCES_DIR / 'thumbnails'
+THUMBS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def infer_kind_from_ext(ext: str) -> str:
@@ -343,6 +361,168 @@ def save_metadata_file(meta: Dict):
         logging.getLogger(__name__).warning(f"Failed to write metadata.json: {e}")
 
 
+# ---------- Thumbnails helpers ----------
+
+def _safe_slug(name: str) -> str:
+    base = re.sub(r'\s+', '-', (name or '').strip())
+    base = re.sub(r'[^a-zA-Z0-9_\-\.]+', '-', base)
+    base = base.strip('-').lower()
+    return base or 'resource'
+
+
+def _letterbox_image(pil_img, size=(480, 270), color=(16, 16, 16)):
+    try:
+        from PIL import Image
+    except Exception:
+        return None
+    if pil_img is None:
+        return None
+    w, h = pil_img.size
+    target_w, target_h = size
+    # scale
+    scale = min(target_w / max(1, w), target_h / max(1, h))
+    new_w = max(1, int(w * scale))
+    new_h = max(1, int(h * scale))
+    pil_resized = pil_img.resize((new_w, new_h))
+    canvas = Image.new('RGB', size, color)
+    offset = ((target_w - new_w) // 2, (target_h - new_h) // 2)
+    canvas.paste(pil_resized, offset)
+    return canvas
+
+
+def _generate_pdf_thumbnail(src_path: Path, dst_path: Path) -> bool:
+    try:
+        import fitz  # PyMuPDF
+        from PIL import Image
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"PDF thumbnail deps missing: {e}")
+        return False
+    try:
+        doc = fitz.open(src_path.as_posix())
+        if doc.page_count == 0:
+            return False
+        page = doc.load_page(0)
+        pix = page.get_pixmap(alpha=False, dpi=144)
+        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        img = _letterbox_image(img)
+        if img is None:
+            return False
+        img.save(dst_path.as_posix(), format='JPEG', quality=85)
+        return True
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"PDF thumbnail generation failed for {src_path}: {e}")
+        return False
+
+
+def _generate_video_thumbnail(src_path: Path, dst_path: Path, time_sec: float = 1.0) -> bool:
+    try:
+        import cv2
+        from PIL import Image
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"Video thumbnail deps missing: {e}")
+        return False
+    try:
+        cap = cv2.VideoCapture(src_path.as_posix())
+        if not cap.isOpened():
+            logging.getLogger(__name__).warning(f"Video open failed: {src_path}")
+            return False
+        fps = cap.get(cv2.CAP_PROP_FPS) or 0
+        frame_count = cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0
+        frame_index = int(fps * time_sec) if fps &gt; 0 else 0
+        # fallback to midpoint if 1s beyond video
+        if fps &gt; 0 and frame_count &gt; 0 and frame_index &gt;= frame_count:
+            frame_index = int(frame_count // 2)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+        ok, frame = cap.read()
+        if not ok or frame is None:
+            # try first frame
+            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            ok, frame = cap.read()
+        cap.release()
+        if not ok or frame is None:
+            return False
+        # BGR to RGB
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        img = Image.fromarray(frame)
+        img = _letterbox_image(img)
+        if img is None:
+            return False
+        img.save(dst_path.as_posix(), format='JPEG', quality=85)
+        return True
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"Video thumbnail generation failed for {src_path}: {e}")
+        return False
+
+
+def _download_to_temp(url: str, suffix: str = '') -> Optional[Path]:
+    import tempfile
+    try:
+        r = requests.get(url, timeout=15, stream=True)
+        if r.status_code != 200:
+            return None
+        tmp_fd, tmp_path = tempfile.mkstemp(suffix=suffix)
+        os.close(tmp_fd)
+        with open(tmp_path, 'wb') as f:
+            for chunk in r.iter_content(chunk_size=1024 * 512):
+                if not chunk:
+                    break
+                f.write(chunk)
+        return Path(tmp_path)
+    except Exception:
+        return None
+
+
+def ensure_thumbnail_for_resource(res: 'ResourceItem', prefer_time_sec: float = 1.0) -> Optional[str]:
+    try:
+        kind = (res.kind or '').lower()
+        ext = (res.ext or '').lower()
+        if kind not in ('pdf', 'video'):
+            return None
+        # slug
+        base_name = res.filename or (Path(res.url).name if res.url else 'resource')
+        slug = Path(_safe_slug(Path(base_name).stem)).stem
+        dst = THUMBS_DIR / f"{slug}.jpg"
+        if dst.exists():
+            return f"/resources/bioweapons/thumbnails/{dst.name}"
+        # find source
+        src_path: Optional[Path] = None
+        # local url
+        if res.url and res.url.startswith('/resources/bioweapons/'):
+            candidate = PUBLIC_RESOURCES_DIR / Path(res.url).name
+            if candidate.exists():
+                src_path = candidate
+        # local filename
+        if src_path is None and res.filename:
+            candidate = PUBLIC_RESOURCES_DIR / res.filename
+            if candidate.exists():
+                src_path = candidate
+        # remote download
+        temp_path: Optional[Path] = None
+        if src_path is None and res.url and res.url.startswith('http'):
+            temp_path = _download_to_temp(res.url, suffix=f".{ext or 'bin'}")
+            if temp_path and temp_path.exists():
+                src_path = temp_path
+        if src_path is None:
+            return None
+        ok = False
+        if kind == 'pdf' or ext == 'pdf':
+            ok = _generate_pdf_thumbnail(src_path, dst)
+        elif kind == 'video' or ext in ('mp4', 'webm'):
+            ok = _generate_video_thumbnail(src_path, dst, time_sec=prefer_time_sec)
+        # cleanup temp
+        try:
+            if temp_path and temp_path.exists():
+                temp_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        if ok and dst.exists():
+            return f"/resources/bioweapons/thumbnails/{dst.name}"
+        return None
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"ensure_thumbnail_for_resource failed: {e}")
+        return None
+
+
 def load_resources_from_folder_and_meta() -> List[ResourceItem]:
     meta = load_metadata_file()
     meta_items: List[ResourceItem] = []
@@ -356,7 +536,7 @@ def load_resources_from_folder_and_meta() -> List[ResourceItem]:
             uploaded_dt = datetime.fromisoformat(uploaded_at) if uploaded_at else datetime.now(timezone.utc)
         except Exception:
             uploaded_dt = datetime.now(timezone.utc)
-        meta_items.append(ResourceItem(
+        item = ResourceItem(
             title=m.get('title') or filename or 'Untitled',
             filename=filename,
             ext=ext,
@@ -365,7 +545,15 @@ def load_resources_from_folder_and_meta() -> List[ResourceItem]:
             tags=m.get('tags', []),
             description=m.get('description'),
             uploaded_at=uploaded_dt
-        ))
+        )
+        # lazy thumbnail field (without generating)
+        base_name = item.filename or (Path(item.url).name if item.url else None)
+        if base_name:
+            slug = Path(_safe_slug(Path(base_name).stem)).stem
+            thumb_candidate = THUMBS_DIR / f"{slug}.jpg"
+            if thumb_candidate.exists():
+                item.thumbnail_url = f"/resources/bioweapons/thumbnails/{thumb_candidate.name}"
+        meta_items.append(item)
 
     seen = set([(it.filename or it.url) for it in meta_items])
     dir_items: List[ResourceItem] = []
@@ -379,7 +567,7 @@ def load_resources_from_folder_and_meta() -> List[ResourceItem]:
         url = f"/resources/bioweapons/{p.name}"
         stat = p.stat()
         mtime = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
-        dir_items.append(ResourceItem(
+        item = ResourceItem(
             title=p.name,
             filename=p.name,
             ext=ext,
@@ -388,7 +576,13 @@ def load_resources_from_folder_and_meta() -> List[ResourceItem]:
             tags=[],
             description=None,
             uploaded_at=mtime
-        ))
+        )
+        # pre-fill thumbnail if exists
+        slug = Path(_safe_slug(p.stem)).stem
+        thumb_candidate = THUMBS_DIR / f"{slug}.jpg"
+        if thumb_candidate.exists():
+            item.thumbnail_url = f"/resources/bioweapons/thumbnails/{thumb_candidate.name}"
+        dir_items.append(item)
     return meta_items + dir_items
 
 # -------------------------------------------------
@@ -396,7 +590,7 @@ def load_resources_from_folder_and_meta() -> List[ResourceItem]:
 # -------------------------------------------------
 DEFAULT_FEEDS = [
     "https://pubmed.ncbi.nlm.nih.gov/rss/search/1G1RkJ2-example-spike-mitochondria/",
-    "https://connect.medrxiv.org/relate/feed/181?custom=1&query=spike%20protein",
+    "https://connect.medrxiv.org/relate/feed/181?custom=1&amp;query=spike%20protein",
     "https://www.biorxiv.org/rss/subject/neuroscience.xml"
 ]
 
@@ -521,6 +715,7 @@ def fallback_sync_from_sample() -> dict:
 async def root():
     return {"message": "mRNA Knowledge Base API"}
 
+
 @api.get("/health")
 async def health():
     try:
@@ -529,6 +724,7 @@ async def health():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @api.get("/research/sync")
 async def research_sync():
     result = fetch_and_sync_feeds(DEFAULT_FEEDS)
@@ -536,16 +732,19 @@ async def research_sync():
         result = fallback_sync_from_sample()
     return result
 
+
 @api.post("/status", response_model=StatusCheck)
 async def create_status_check(input: StatusCheckCreate):
     status_obj = StatusCheck(client_name=input.client_name)
     await db.status_checks.insert_one(prepare_for_mongo(status_obj.model_dump()))
     return status_obj
 
+
 @api.get("/status", response_model=List[StatusCheck])
 async def get_status_checks():
     items = await db.status_checks.find().to_list(100)
     return [StatusCheck(**parse_from_mongo(it)) for it in items]
+
 
 @api.get("/feed", response_model=List[FeedItem])
 async def get_feed(tag: Optional[str] = Query(default=None)):
@@ -553,6 +752,7 @@ async def get_feed(tag: Optional[str] = Query(default=None)):
     q = {"tags": {"$regex": tag, "$options": "i"}} if tag else {}
     items = await db.feed.find(q).sort("published_at", -1).to_list(100)
     return [FeedItem(**parse_from_mongo(it)) for it in items]
+
 
 @api.get("/research", response_model=List[ResearchArticle])
 async def get_research(tag: Optional[str] = Query(default=None), sort_by: str = Query(default='date')):
@@ -563,13 +763,21 @@ async def get_research(tag: Optional[str] = Query(default=None), sort_by: str = 
     items = await db.articles.find(q).sort(sort_field, sort_dir).to_list(100)
     return [ResearchArticle(**parse_from_mongo(it)) for it in items]
 
+
 @api.get("/resources", response_model=List[ResourceItem])
 async def get_resources(tag: Optional[str] = Query(default=None)):
     data = load_resources_from_folder_and_meta()
+    # Generate thumbnails lazily (on request) for pdf/video if missing
+    for r in data:
+        if not r.thumbnail_url and (r.kind in ('pdf','video')):
+            thumb = ensure_thumbnail_for_resource(r, prefer_time_sec=1.0)
+            if thumb:
+                r.thumbnail_url = thumb
     if tag:
         t = tag.lower()
         data = [r for r in data if any(t in (x.lower()) for x in (r.tags or []))]
     return data
+
 
 @api.post("/resources/upload", response_model=ResourceItem)
 async def upload_resource(
@@ -615,6 +823,11 @@ async def upload_resource(
             })
         meta['resources'] = resources
         save_metadata_file(meta)
+        # Attempt thumbnail generation synchronously
+        thumb_url = None
+        if kind in ('pdf','video'):
+            temp_res = ResourceItem(title=title or fname, filename=fname, ext=ext, url=url, kind=kind, tags=[t.strip() for t in (tags or '').split(',') if t.strip()], description=description, uploaded_at=datetime.fromisoformat(now_iso))
+            thumb_url = ensure_thumbnail_for_resource(temp_res, prefer_time_sec=1.0)
         item = ResourceItem(
             title=title or fname,
             filename=fname,
@@ -623,11 +836,13 @@ async def upload_resource(
             kind=kind,
             tags=[t.strip() for t in (tags or '').split(',') if t.strip()],
             description=description,
-            uploaded_at=datetime.fromisoformat(now_iso)
+            uploaded_at=datetime.fromisoformat(now_iso),
+            thumbnail_url=thumb_url
         )
         return item
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
+
 
 class ResourceMetaUpdate(BaseModel):
     filename: Optional[str] = None
@@ -635,6 +850,7 @@ class ResourceMetaUpdate(BaseModel):
     title: Optional[str] = None
     tags: Optional[List[str]] = None
     description: Optional[str] = None
+
 
 @api.patch("/resources/metadata", response_model=ResourceItem)
 async def update_resource_metadata(body: ResourceMetaUpdate):
@@ -661,9 +877,14 @@ async def update_resource_metadata(body: ResourceMetaUpdate):
         resources.append(entry)
         meta['resources'] = resources
         save_metadata_file(meta)
-        return ResourceItem(
+        thumb_url = None
+        temp_item = ResourceItem(
             title=entry['title'], filename=entry.get('filename'), ext=entry.get('ext'), url=entry.get('url'), kind=entry.get('kind'), tags=entry.get('tags', []), description=entry.get('description'), uploaded_at=datetime.fromisoformat(entry['uploaded_at'])
         )
+        if temp_item.kind in ('pdf','video'):
+            thumb_url = ensure_thumbnail_for_resource(temp_item)
+        temp_item.thumbnail_url = thumb_url
+        return temp_item
     r = resources[idx]
     if body.title is not None: r['title'] = body.title
     if body.description is not None: r['description'] = body.description
@@ -673,7 +894,7 @@ async def update_resource_metadata(body: ResourceMetaUpdate):
     ext = r.get('ext') or (Path(r.get('filename') or '').suffix.lstrip('.') if r.get('filename') else None)
     kind = r.get('kind') or infer_kind_from_ext(ext or '')
     uploaded_at = r.get('uploaded_at') or datetime.now(timezone.utc).isoformat()
-    return ResourceItem(
+    temp_item = ResourceItem(
         title=r.get('title') or r.get('filename') or 'Untitled',
         filename=r.get('filename'),
         ext=ext,
@@ -683,6 +904,10 @@ async def update_resource_metadata(body: ResourceMetaUpdate):
         description=r.get('description'),
         uploaded_at=datetime.fromisoformat(uploaded_at)
     )
+    if temp_item.kind in ('pdf','video') and not temp_item.thumbnail_url:
+        temp_item.thumbnail_url = ensure_thumbnail_for_resource(temp_item)
+    return temp_item
+
 
 @api.delete("/resources/delete")
 async def delete_resource(filename: Optional[str] = Query(default=None), url: Optional[str] = Query(default=None)):
@@ -694,6 +919,16 @@ async def delete_resource(filename: Optional[str] = Query(default=None), url: Op
     removed = False
     for r in resources:
         if (filename and r.get('filename') == filename) or (url and r.get('url') == url):
+            # try remove thumbnail too
+            try:
+                base = Path(filename or Path(url).name).stem if (filename or url) else None
+                if base:
+                    slug = Path(_safe_slug(base)).stem
+                    thumb_path = THUMBS_DIR / f"{slug}.jpg"
+                    if thumb_path.exists():
+                        thumb_path.unlink()
+            except Exception:
+                pass
             removed = True
             continue
         new_res.append(r)
@@ -718,6 +953,7 @@ async def get_treatments(tag: Optional[str] = Query(default=None)):
     items = await db.treatments.find(q).sort("created_at", -1).to_list(100)
     return [Treatment(**parse_from_mongo(it)) for it in items]
 
+
 @api.get("/media", response_model=List[MediaItem])
 async def get_media(tag: Optional[str] = Query(default=None), source: Optional[str] = Query(default=None)):
     await ensure_seed()
@@ -739,6 +975,7 @@ async def ai_summarize_local(body: AISummaryRequest):
         raise HTTPException(status_code=400, detail="text is required")
     summary, key_points = summarize_text(text, max_sentences=max(1, min(8, body.max_sentences)))
     return AISummaryResponse(summary=summary, key_points=key_points)
+
 
 @api.post("/ai/answer_local", response_model=AIAnswerResponse)
 async def ai_answer_local(body: AIAnswerRequest):
@@ -782,7 +1019,7 @@ async def ai_answer_local(body: AIAnswerRequest):
     scored: List[Tuple[float, Tuple[str,str,Optional[str],str]]] = []
     for d in docs:
         sc = score(d[3])
-        if sc > 0: scored.append((sc, d))
+        if sc &gt; 0: scored.append((sc, d))
     top = [d for _, d in sorted(scored, key=lambda x: x[0], reverse=True)[:3]]
 
     if not top:
@@ -809,12 +1046,14 @@ app.add_middleware(
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+
 @app.on_event("startup")
 async def startup_seed():
     try:
         await ensure_seed()
     except Exception as e:
         logger.error(f"Seed error: {e}")
+
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
