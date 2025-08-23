@@ -15,7 +15,7 @@ if [[ -f "$ENV_FILE" ]]; then
   # shellcheck disable=SC2002
   RAW_URL=$(cat "$ENV_FILE" | grep -E '^REACT_APP_BACKEND_URL=' || true)
   if [[ -n "$RAW_URL" ]]; then
-    BACKEND_URL=$(echo "$RAW_URL" | sed -E 's/^REACT_APP_BACKEND_URL=//; s/^"?([^"']+)"?$/\1/')
+    BACKEND_URL=$(echo "$RAW_URL" | sed -E "s/^REACT_APP_BACKEND_URL=//; s/^\"?([^\"]+)\"?$/\1/")
   fi
 fi
 
