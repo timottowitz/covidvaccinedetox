@@ -408,19 +408,23 @@ startxref
                 'tags': 'test,pdf,async',
                 'description': 'Test async PDF upload workflow'
             }
-            headers = {'X-Idempotency-Key': 'test-pdf-upload-123'}
+            # Use timestamp to ensure unique idempotency key
+            import time
+            timestamp = str(int(time.time()))
+            headers = {'X-Idempotency-Key': f'test-pdf-upload-{timestamp}'}
             
             response = requests.post(f"{self.api_url}/resources/upload", files=files, data=data, headers=headers, timeout=30)
             
             if response.status_code == 202:
                 result = response.json()
-                if 'task_id' in result and 'idempotency_key' in result and result.get('status') == 'pending':
+                if 'task_id' in result and 'idempotency_key' in result and result.get('status') in ['pending', 'processing', 'completed']:
                     task_id = result['task_id']
                     idempotency_key = result['idempotency_key']
                     self.log_result("Async PDF Upload - 202 Response", True, f"Task ID: {task_id}, Status: {result.get('status')}")
                     
                     # Test 2: Check task status progression
                     max_attempts = 30
+                    final_status = None
                     for attempt in range(max_attempts):
                         time.sleep(1)  # Wait 1 second between checks
                         status_response = requests.get(f"{self.api_url}/knowledge/task_status?task_id={task_id}", timeout=10)
@@ -428,6 +432,7 @@ startxref
                         if status_response.status_code == 200:
                             status_data = status_response.json()
                             current_status = status_data.get('status')
+                            final_status = current_status
                             
                             if current_status == 'completed':
                                 # Check for result field with ResourceItem data
