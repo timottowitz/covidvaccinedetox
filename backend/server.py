@@ -570,9 +570,13 @@ def chunkr_ingest_pdf_bg(file_path_str: str, title: str, tags: List[str], descri
         out = _unique_knowledge_path(slug)
         _write_markdown_atomic(out, md)
         url = f"/knowledge/{out.name}"
+        
+        # Compute content hash for the generated markdown
+        content_hash = compute_content_hash(out)
+        
         # persist mapping to metadata if resource info provided
         if resource_filename or resource_url:
-            _update_metadata_knowledge(resource_filename, resource_url, url)
+            _update_metadata_knowledge(resource_filename, resource_url, url, content_hash)
         return url
     except Exception as e:
         logging.getLogger(__name__).warning(f"chunkr_ingest_pdf_bg error: {e}")
