@@ -405,6 +405,20 @@ function Resources(){
 
           <Uploader onDone={load} />
 
+          <Card className="card" style={{gridColumn:'span 12'}}>
+            <CardContent>
+              <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+                <Button variant="outline" onClick={async()=>{
+                  try {
+                    const { data } = await axios.get(`${API}/knowledge/status`);
+                    const count = (data.files||[]).length;
+                    toast({title:'Knowledge files', description:`${count} file(s) available under /knowledge`});
+                  } catch(e){ toast({title:'Status failed'}); }
+                }}>Knowledge Status</Button>
+              </div>
+            </CardContent>
+          </Card>
+
           {items.map(r => <ResourceCard key={(r.filename || r.url)} r={r} onChanged={load} />)}
         </div>
       </div>
