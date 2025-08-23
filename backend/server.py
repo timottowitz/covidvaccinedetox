@@ -179,6 +179,9 @@ class ResourceItem(BaseModel):
     description: Optional[str] = None
     uploaded_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     thumbnail_url: Optional[str] = None
+    knowledge_url: Optional[str] = None
+    knowledge_job_id: Optional[str] = None
+    knowledge_job_type: Optional[str] = None
 
 
 class Treatment(BaseModel):
