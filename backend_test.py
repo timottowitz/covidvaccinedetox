@@ -498,7 +498,33 @@ startxref
                 else:
                     self.log_result("Async Video Upload - 202 Response", False, f"Missing required fields: {result}")
             else:
-                self.log_result("Async Video Upload - 202 Response", False, f"Expected 202, got {response.status_code}")
+                # Log the actual error response for debugging
+                try:
+                    error_detail = response.json().get('detail', 'No detail provided')
+                except:
+                    error_detail = response.text
+                self.log_result("Async Video Upload - 202 Response", False, f"Expected 202, got {response.status_code}: {error_detail}")
+                
+                # If it's a MIME type issue, that's actually expected behavior - fake MP4 content won't pass validation
+                if response.status_code == 400 and ('type' in error_detail.lower() or 'mime' in error_detail.lower()):
+                    self.log_result("Video MIME Validation (Expected)", True, f"Correctly rejected fake MP4 content: {error_detail}")
+                    
+                    # Try with a different approach - create a minimal valid MP4 header
+                    # This is a very basic MP4 file structure that should pass MIME detection
+                    minimal_mp4 = b'\x00\x00\x00\x20ftypmp41\x00\x00\x00\x00mp41isom\x00\x00\x00\x08free'
+                    files = {'file': ('test_minimal.mp4', minimal_mp4, 'video/mp4')}
+                    
+                    response2 = requests.post(f"{self.api_url}/resources/upload", files=files, data=data, headers={'X-Idempotency-Key': 'test-video-upload-789'}, timeout=30)
+                    
+                    if response2.status_code == 202:
+                        result2 = response2.json()
+                        self.log_result("Minimal MP4 Upload - 202 Response", True, f"Minimal MP4 accepted: {result2.get('task_id')}")
+                    else:
+                        try:
+                            error_detail2 = response2.json().get('detail', 'No detail provided')
+                        except:
+                            error_detail2 = response2.text
+                        self.log_result("Minimal MP4 Upload - 202 Response", False, f"Even minimal MP4 rejected: {response2.status_code}: {error_detail2}")
                 
         except Exception as e:
             self.log_result("Async Upload Workflow", False, f"Request failed: {str(e)}")
