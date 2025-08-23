@@ -446,7 +446,11 @@ def chunkr_ingest_pdf_bg(file_path_str: str, title: str, tags: List[str], descri
         slug = re.sub(r"[^a-zA-Z0-9_\-]+","-", (title_md or "document").lower()).strip('-')[:80] or "document"
         out = _unique_knowledge_path(slug)
         _write_markdown_atomic(out, md)
-        return f"/knowledge/{out.name}"
+        url = f"/knowledge/{out.name}"
+        # persist mapping to metadata if resource info provided
+        if resource_filename or resource_url:
+            _update_metadata_knowledge(resource_filename, resource_url, url)
+        return url
     except Exception as e:
         logging.getLogger(__name__).warning(f"chunkr_ingest_pdf_bg error: {e}")
         return None
