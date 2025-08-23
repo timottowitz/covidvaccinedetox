@@ -1,5 +1,13 @@
 # Here are your Instructions
 
+
+## Environment Setup
+- Copy `.env.example` to `.env` at the repository root and set values:
+  - `BACKEND_URL` (e.g., `http://localhost:8001` for internal supervisor-mapped backend)
+  - `CHUNKR_API_KEY`, `GEMINI_API_KEY` (backend-only secrets)
+- Do NOT place secrets in `frontend/.env`.
+- After updating backend environment, run `sudo supervisorctl restart backend`.
+
 ## Operations
 
 ### Periodic Knowledge Reconcile (cron)
