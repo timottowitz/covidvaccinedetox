@@ -101,6 +101,35 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+frontend:
+  - task: "Knowledge page UI with frontmatter, anchors, copy buttons"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/components/KnowledgeList.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added Knowledge page, frontmatter header, chunk anchors, copy buttons; linked in nav."
+  - task: "ErrorBoundary to ignore MetaMask errors"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/components/ErrorBoundary.jsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Wrapped routes with ErrorBoundary; extension errors no longer break pages."
+
+agent_communication:
+  - agent: "main"
+    message: "Please verify UI navigation: Home → Resources → Knowledge. On Knowledge, assert page loads (card title 'Knowledge'); if files exist, clicking the first file shows preview content and copy buttons; otherwise check empty state message present. Ignore console MetaMask warnings."
+
 ---
 user_problem_statement: "Implement server-side thumbnail generation for PDF and video resources, and display them on the Resources page."
 backend:
