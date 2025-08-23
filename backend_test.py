@@ -338,9 +338,11 @@ class BackendAPITester:
         self.test_feed_with_tag_filter()
         self.test_research_endpoint()
         self.test_research_sort_by_citations()
+        self.test_research_sync_endpoint()  # NEW FEATURE TEST
         self.test_resources_endpoint()
         self.test_resources_tag_filter()
         self.test_treatments_endpoint()
+        self.test_media_endpoint()  # NEW FEATURE TEST
         self.test_status_endpoints()
 
         # Print summary
@@ -352,6 +354,27 @@ class BackendAPITester:
             return True
         else:
             print("⚠️  Some backend tests failed. Check details above.")
+            return False
+
+    def run_incremental_tests_only(self):
+        """Run only the new feature tests requested"""
+        print("🚀 Starting Incremental Backend API Tests")
+        print(f"Testing against: {self.base_url}")
+        print("=" * 50)
+
+        # Run only the new tests
+        self.test_research_sync_endpoint()
+        self.test_media_endpoint()
+
+        # Print summary
+        print("\n" + "=" * 50)
+        print(f"📊 Incremental Test Results: {self.tests_passed}/{self.tests_run} tests passed")
+        
+        if self.tests_passed == self.tests_run:
+            print("🎉 All incremental tests passed!")
+            return True
+        else:
+            print("⚠️  Some incremental tests failed. Check details above.")
             return False
 
 def main():
