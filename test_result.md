@@ -186,7 +186,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Thumbnail generation endpoint behavior on list and upload"
+    - "Async upload endpoint with 202 response, task tracking, and limits"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -196,3 +196,5 @@ agent_communication:
     message: "Please verify backend: hitting GET /api/resources should generate thumbnails for pdf/video items when missing and return thumbnail_url; uploading a new pdf/video should create thumbnail immediately. No external URLs/ports changed."
   - agent: "testing"
     message: "✅ BACKEND THUMBNAIL TESTING COMPLETE: All functionality working perfectly. GET /api/resources lazily generates thumbnails for PDF/video (files created on disk), POST /api/resources/upload creates thumbnails on upload, external URLs handled gracefully, CORS/routes unchanged, performance optimized (30% faster on second call). Ready for main agent to summarize and finish."
+  - agent: "main"
+    message: "Implemented new async upload system: 1) POST /api/resources/upload now returns 202 Accepted with task_id and idempotency_key, enforces 100MB size and MIME type limits (PDF, MP4, QuickTime, WebM), 2) Added /api/knowledge/task_status?task_id=X endpoint to check upload status, 3) Background processing handles file saving, thumbnail generation, and knowledge ingestion asynchronously. Please test: upload workflow returns 202, task_status shows progress, files process correctly, limits are enforced."
