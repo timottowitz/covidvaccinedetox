@@ -114,6 +114,15 @@ class Treatment(BaseModel):
     bundle_product: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+class MediaItem(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    title: str
+    description: Optional[str] = None
+    source: str  # YouTube | Vimeo | Other
+    url: str     # Prefer embed URLs (youtube embed, vimeo player)
+    tags: List[str] = []
+    published_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 # -------------------------------------------------
 # Seed Data (for MVP demo)
 # -------------------------------------------------
@@ -223,6 +232,27 @@ async def ensure_seed():
         sample_treatments = [prepare_for_mongo(Treatment(**t).model_dump()) for t in sample_treatments]
         await db.treatments.insert_many(sample_treatments)
 
+    media_count = await db.media.count_documents({})
+    if media_count == 0:
+        sample_media = [
+            MediaItem(
+                title='Spike Protein Lecture Clip',
+                description='Overview of spike-induced pathways (demo).',
+                source='YouTube',
+                url='https://www.youtube.com/embed/dQw4w9WgXcQ',
+                tags=['spike','lecture']
+            ).model_dump(),
+            MediaItem(
+                title='Mitochondria & Energy',
+                description='Mitochondrial function overview (demo).',
+                source='Vimeo',
+                url='https://player.vimeo.com/video/76979871',
+                tags=['mitochondria','energy']
+            ).model_dump(),
+        ]
+        sample_media = [prepare_for_mongo(it) for it in sample_media]
+        await db.media.insert_many(sample_media)
+
 # -------------------------------------------------
 # File-based Resources Loader (auto-render)
 # -------------------------------------------------
@@ -313,16 +343,13 @@ async def get_research(tag: Optional[str] = Query(default=None), sort_by: str = 
 
 @api.get("/resources", response_model=List[ResourceItem])
 async def get_resources(tag: Optional[str] = Query(default=None)):
-    # 1) Try folder-based metadata (authoritative for MVP auto-render)
     folder_items = load_resources_from_folder()
     if folder_items:
         data = folder_items
     else:
-        # 2) Fallback to DB seed
         await ensure_seed()
         docs = await db.resources.find({}).sort("uploaded_at", -1).to_list(200)
         data = [ResourceItem(**parse_from_mongo(it)) for it in docs]
-    # Filter by tag if provided
     if tag:
         t = tag.lower()
         data = [r for r in data if any(t in (x.lower()) for x in (r.tags or []))]
@@ -334,6 +361,17 @@ async def get_treatments(tag: Optional[str] = Query(default=None)):
     q = {"tags": {"$regex": tag, "$options": "i"}} if tag else {}
     items = await db.treatments.find(q).sort("created_at", -1).to_list(100)
     return [Treatment(**parse_from_mongo(it)) for it in items]
+
+@api.get("/media", response_model=List[MediaItem])
+async def get_media(tag: Optional[str] = Query(default=None), source: Optional[str] = Query(default=None)):
+    await ensure_seed()
+    q = {}
+    if tag:
+        q['tags'] = {"$regex": tag, "$options": "i"}
+    if source:
+        q['source'] = {"$regex": source, "$options": "i"}
+    items = await db.media.find(q).sort("published_at", -1).to_list(100)
+    return [MediaItem(**parse_from_mongo(it)) for it in items]
 
 # bind router
 app.include_router(api)

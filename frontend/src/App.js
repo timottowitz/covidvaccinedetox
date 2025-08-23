@@ -10,7 +10,8 @@ import { toast } from "./hooks/use-toast";
 import { Calendar } from "./components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "./components/ui/dialog";
-import { CalendarIcon, ShoppingCart, ExternalLink, FileText, Video, AudioLines, Download } from "lucide-react";
+import { AspectRatio } from "./components/ui/aspect-ratio";
+import { CalendarIcon, ShoppingCart, ExternalLink } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -32,6 +33,7 @@ function Header() {
               <Link to="/"><button className="pill">Home</button></Link>
               <Link to="/research" data-testid="nav-research"><button className="pill" style={{background:'#0ea5a5'}}>Research</button></Link>
               <Link to="/resources" data-testid="nav-resources"><button className="pill" style={{background:'#10b981'}}>Resources</button></Link>
+              <Link to="/media" data-testid="nav-media"><button className="pill" style={{background:'#2563eb'}}>Media</button></Link>
               <Link to="/treatments" data-testid="nav-treatments"><button className="pill" style={{background:'#475569'}}>Treatments</button></Link>
               <Link to="/shop" data-testid="nav-shop"><button className="pill" style={{background:'#0284c7'}}>Shop</button></Link>
             </div>
@@ -169,10 +171,10 @@ function Research(){
 }
 
 function ResourceIcon({kind}){
-  if(kind === 'pdf') return <FileText size={16} />
-  if(kind === 'video') return <Video size={16} />
-  if(kind === 'audio') return <AudioLines size={16} />
-  return <FileText size={16} />
+  if(kind === 'pdf') return <span>PDF</span>
+  if(kind === 'video') return <span>VID</span>
+  if(kind === 'audio') return <span>AUD</span>
+  return <span>FILE</span>
 }
 
 function ResourceCard({r}){
@@ -210,7 +212,7 @@ function ResourceCard({r}){
                 )}
               </div>
               <div style={{display:'flex',gap:12,marginTop:12}}>
-                <a className="pill" href={r.url} target="_blank" rel="noreferrer"><Download size={16} style={{marginRight:8}}/>Download</a>
+                <a className="pill" href={r.url} target="_blank" rel="noreferrer">Download</a>
               </div>
             </DialogContent>
           </Dialog>
@@ -301,7 +303,7 @@ function Treatments(){
                 <div style={{display:'flex', gap:12, flexWrap:'wrap'}}>
                   {(t.links||[]).map((l,i) => <a key={i} className="pill" href={l} target="_blank" rel="noreferrer">Study <ExternalLink size={16} style={{marginLeft:8}}/></a>)}
                   {t.bundle_product && (
-                    <Link to="/shop" className="pill">View Bundle <ShoppingCart size={16} style={{marginLeft:8}}/></Link>
+                    <Link to="/shop" className="pill">View Bundle <ExternalLink size={16} style={{marginLeft:8}}/></Link>
                   )}
                 </div>
               </CardContent>
@@ -312,6 +314,94 @@ function Treatments(){
       <Toaster />
     </>
   )
+}
+
+function Media(){
+  const api = useApi();
+  const [items, setItems] = useState([]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tag = searchParams.get('tag') || '';
+  const source = searchParams.get('source') || '';
+
+  useEffect(() => { (async () => {
+    try {
+      const qs = `${tag ? `tag=${encodeURIComponent(tag)}`: ''}${source ? `${tag ? '&' : ''}source=${encodeURIComponent(source)}`: ''}`;
+      const {data} = await api.get(`/media${qs ? `?${qs}`: ''}`);
+      setItems(data);
+    } catch (e) {
+      toast({title:'Load failed', description:'Could not load media'});
+    }
+  })(); }, [tag, source]);
+
+  return (
+    <>
+      <Header />
+      <div className="container">
+        <div className="grid">
+          <Card className="card" style={{gridColumn:'span 12'}}>
+            <CardContent>
+              <div style={{display:'flex', gap:12, alignItems:'center', flexWrap:'wrap'}}>
+                <Input placeholder="Filter by tag (e.g., mitochondria)" value={tag} onChange={e => setSearchParams({tag: e.target.value, source})} style={{maxWidth:280}} />
+                <Select value={source || 'all'} onValueChange={(v) => setSearchParams({tag, source: v === 'all' ? '' : v})}>
+                  <SelectTrigger style={{width:220}}>
+                    <SelectValue placeholder="Source" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Sources</SelectItem>
+                    <SelectItem value="YouTube">YouTube</SelectItem>
+                    <SelectItem value="Vimeo">Vimeo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          {items.map((m) => (
+            <Card key={m.id} className="card fade-in" style={{gridColumn:'span 12'}}>
+              <CardHeader>
+                <CardTitle className="card-title">{m.title}</CardTitle>
+                <div className="card-meta">{m.source} • {new Date(m.published_at).toLocaleDateString()}</div>
+              </CardHeader>
+              <CardContent>
+                <div style={{marginBottom:12}}>{m.description}</div>
+                <AspectRatio ratio={16/9}>
+                  <iframe
+                    src={m.url}
+                    title={m.title}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                    allowFullScreen
+                    style={{border:'1px solid #e2e8f0', borderRadius:12, width:'100%', height:'100%'}}
+                  />
+                </AspectRatio>
+                <div style={{marginTop:12}}>
+                  {(m.tags||[]).map(t => <span key={t} className="tag">{t}</span>)}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+      <Toaster />
+    </>
+  )
+}
+
+function App() {
+  return (
+    <div className="App">
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/research" element={<Research />} />
+          <Route path="/resources" element={<Resources />} />
+          <Route path="/media" element={<Media />} />
+          <Route path="/treatments" element={<Treatments />} />
+          <Route path="/shop" element={<Shop />} />
+        </Routes>
+      </BrowserRouter>
+    </div>
+  );
 }
 
 function Shop(){
@@ -392,22 +482,6 @@ function Shop(){
       </div>
     </>
   )
-}
-
-function App() {
-  return (
-    <div className="App">
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/research" element={<Research />} />
-          <Route path="/resources" element={<Resources />} />
-          <Route path="/treatments" element={<Treatments />} />
-          <Route path="/shop" element={<Shop />} />
-        </Routes>
-      </BrowserRouter>
-    </div>
-  );
 }
 
 export default App;
