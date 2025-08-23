@@ -7,10 +7,17 @@ A helper script triggers a backend reconcile so that generated knowledge (markdo
 
 - Script:
   - `scripts/reconcile_knowledge.sh`
-  - Reads `REACT_APP_BACKEND_URL` from `frontend/.env`
-  - Calls `POST $REACT_APP_BACKEND_URL/api/knowledge/reconcile`
+  - Reads backend `.env` from repo root if present (`/app/.env`)
+  - Calls `POST $BACKEND_URL/api/knowledge/reconcile`
+
+- Configure backend URL:
+  - Copy `.env.example` to `.env` at repo root and set `BACKEND_URL` (e.g., `http://localhost:8001`), or pass it inline/arg.
 
 - Example crontab (every 10 minutes):
+```
+*/10 * * * * BACKEND_URL=https://your-backend.example.com /bin/bash /app/scripts/reconcile_knowledge.sh >> /var/log/knowledge_reconcile.log 2>&1
+```
+Or with repo root .env:
 ```
 */10 * * * * /bin/bash /app/scripts/reconcile_knowledge.sh >> /var/log/knowledge_reconcile.log 2>&1
 ```
