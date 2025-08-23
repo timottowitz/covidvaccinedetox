@@ -1292,6 +1292,405 @@ startxref
             print("⚠️  Some advanced reconciliation tests failed. Check details above.")
             return False
 
+    def test_ci_security_implementation(self):
+        """Test CI security implementation for preventing secret leakage"""
+        try:
+            # Test 1: Verify CI workflow file exists and has security checks
+            ci_workflow_path = "/app/.github/workflows/ci.yml"
+            if not os.path.exists(ci_workflow_path):
+                self.log_result("CI Workflow File Exists", False, "ci.yml file not found")
+                return False
+            
+            with open(ci_workflow_path, 'r') as f:
+                ci_content = f.read()
+            
+            # Check for required security patterns in CI workflow
+            required_patterns = [
+                "CHUNKR_API_KEY",
+                "GEMINI_API_KEY", 
+                "secret leakage",
+                "frontend/",
+                "backend/.env",
+                "os.environ"
+            ]
+            
+            missing_patterns = []
+            for pattern in required_patterns:
+                if pattern not in ci_content:
+                    missing_patterns.append(pattern)
+            
+            if missing_patterns:
+                self.log_result("CI Security Patterns", False, f"Missing patterns: {missing_patterns}")
+            else:
+                self.log_result("CI Security Patterns", True, "All required security patterns found in CI workflow")
+            
+            # Test 2: Verify backend secrets are properly accessed via os.environ.get()
+            backend_server_path = "/app/backend/server.py"
+            with open(backend_server_path, 'r') as f:
+                backend_content = f.read()
+            
+            # Check that secrets are accessed via os.environ.get()
+            chunkr_access = "os.environ.get('CHUNKR_API_KEY')" in backend_content
+            gemini_access = "os.environ.get('GEMINI_API_KEY')" in backend_content
+            
+            if chunkr_access and gemini_access:
+                self.log_result("Backend Secret Access", True, "Secrets properly accessed via os.environ.get()")
+            else:
+                self.log_result("Backend Secret Access", False, f"CHUNKR: {chunkr_access}, GEMINI: {gemini_access}")
+            
+            # Test 3: Verify backend .env contains the secrets
+            backend_env_path = "/app/backend/.env"
+            if os.path.exists(backend_env_path):
+                with open(backend_env_path, 'r') as f:
+                    backend_env_content = f.read()
+                
+                has_chunkr = "CHUNKR_API_KEY" in backend_env_content
+                has_gemini = "GEMINI_API_KEY" in backend_env_content
+                
+                if has_chunkr and has_gemini:
+                    self.log_result("Backend Secrets Location", True, "API keys found in backend/.env")
+                else:
+                    self.log_result("Backend Secrets Location", False, f"Missing keys - CHUNKR: {has_chunkr}, GEMINI: {has_gemini}")
+            else:
+                self.log_result("Backend Secrets Location", False, "backend/.env file not found")
+            
+            # Test 4: Verify frontend .env only has REACT_APP_ prefixed variables
+            frontend_env_path = "/app/frontend/.env"
+            if os.path.exists(frontend_env_path):
+                with open(frontend_env_path, 'r') as f:
+                    frontend_env_content = f.read()
+                
+                # Check that no backend secrets are in frontend .env
+                has_backend_secrets = "CHUNKR_API_KEY" in frontend_env_content or "GEMINI_API_KEY" in frontend_env_content
+                
+                # Check that only REACT_APP_ variables are present (excluding comments and empty lines)
+                lines = [line.strip() for line in frontend_env_content.split('\n') if line.strip() and not line.strip().startswith('#')]
+                non_react_vars = [line for line in lines if not line.startswith('REACT_APP_') and not line.startswith('WDS_SOCKET_PORT')]
+                
+                if not has_backend_secrets and len(non_react_vars) == 0:
+                    self.log_result("Frontend Environment Security", True, "Frontend .env contains only safe REACT_APP_ variables")
+                else:
+                    self.log_result("Frontend Environment Security", False, f"Backend secrets: {has_backend_secrets}, Non-REACT_APP vars: {non_react_vars}")
+            else:
+                self.log_result("Frontend Environment Security", False, "frontend/.env file not found")
+            
+            # Test 5: Check frontend source code for hardcoded secrets
+            frontend_src_path = "/app/frontend/src"
+            if os.path.exists(frontend_src_path):
+                secret_found = False
+                secret_files = []
+                
+                for root, dirs, files in os.walk(frontend_src_path):
+                    for file in files:
+                        if file.endswith(('.js', '.jsx', '.ts', '.tsx')):
+                            file_path = os.path.join(root, file)
+                            try:
+                                with open(file_path, 'r', encoding='utf-8') as f:
+                                    content = f.read()
+                                    if 'CHUNKR_API_KEY' in content or 'GEMINI_API_KEY' in content:
+                                        secret_found = True
+                                        secret_files.append(file_path)
+                            except Exception:
+                                pass  # Skip files that can't be read
+                
+                if not secret_found:
+                    self.log_result("Frontend Source Code Security", True, "No hardcoded secrets found in frontend source")
+                else:
+                    self.log_result("Frontend Source Code Security", False, f"Secrets found in: {secret_files}")
+            else:
+                self.log_result("Frontend Source Code Security", False, "Frontend src directory not found")
+            
+            return True
+            
+        except Exception as e:
+            self.log_result("CI Security Implementation", False, f"Test failed: {str(e)}")
+            return False
+
+    def test_build_security_simulation(self):
+        """Simulate build security checks that would run in CI"""
+        try:
+            # Test 1: Check if frontend build would include secrets (simulation)
+            frontend_path = "/app/frontend"
+            
+            # Check package.json exists
+            package_json_path = os.path.join(frontend_path, "package.json")
+            if not os.path.exists(package_json_path):
+                self.log_result("Build Security - Package.json", False, "package.json not found")
+                return False
+            
+            # Check for build script
+            with open(package_json_path, 'r') as f:
+                package_content = json.load(f)
+            
+            has_build_script = 'build' in package_content.get('scripts', {})
+            
+            if has_build_script:
+                self.log_result("Build Security - Build Script", True, "Build script found in package.json")
+            else:
+                self.log_result("Build Security - Build Script", False, "No build script found")
+            
+            # Test 2: Verify environment variable usage patterns in frontend
+            frontend_src_path = "/app/frontend/src"
+            if os.path.exists(frontend_src_path):
+                env_usage_files = []
+                proper_usage = True
+                
+                for root, dirs, files in os.walk(frontend_src_path):
+                    for file in files:
+                        if file.endswith(('.js', '.jsx', '.ts', '.tsx')):
+                            file_path = os.path.join(root, file)
+                            try:
+                                with open(file_path, 'r', encoding='utf-8') as f:
+                                    content = f.read()
+                                    
+                                    # Check for proper REACT_APP_ usage
+                                    if 'process.env.REACT_APP_' in content or 'import.meta.env.REACT_APP_' in content:
+                                        env_usage_files.append(file)
+                                    
+                                    # Check for improper backend env var usage
+                                    if 'process.env.CHUNKR_API_KEY' in content or 'process.env.GEMINI_API_KEY' in content:
+                                        proper_usage = False
+                                        
+                            except Exception:
+                                pass
+                
+                if proper_usage:
+                    self.log_result("Build Security - Environment Usage", True, f"Proper env var usage in {len(env_usage_files)} files")
+                else:
+                    self.log_result("Build Security - Environment Usage", False, "Improper backend env var usage detected")
+            
+            # Test 3: Check that backend secrets are not imported/referenced in frontend
+            frontend_files_checked = 0
+            backend_imports_found = False
+            
+            if os.path.exists(frontend_src_path):
+                for root, dirs, files in os.walk(frontend_src_path):
+                    for file in files:
+                        if file.endswith(('.js', '.jsx', '.ts', '.tsx')):
+                            file_path = os.path.join(root, file)
+                            frontend_files_checked += 1
+                            try:
+                                with open(file_path, 'r', encoding='utf-8') as f:
+                                    content = f.read()
+                                    
+                                    # Look for patterns that might indicate backend secret usage
+                                    suspicious_patterns = [
+                                        'chunkr.*api.*key',
+                                        'gemini.*api.*key',
+                                        'ch_[A-Za-z0-9_-]{20,}',  # Chunkr API key pattern
+                                        'AIza[A-Za-z0-9_-]{20,}'  # Google API key pattern
+                                    ]
+                                    
+                                    import re
+                                    for pattern in suspicious_patterns:
+                                        if re.search(pattern, content, re.IGNORECASE):
+                                            backend_imports_found = True
+                                            break
+                                            
+                            except Exception:
+                                pass
+            
+            if not backend_imports_found:
+                self.log_result("Build Security - Backend Secret References", True, f"No backend secret references in {frontend_files_checked} frontend files")
+            else:
+                self.log_result("Build Security - Backend Secret References", False, "Potential backend secret references found in frontend")
+            
+            return True
+            
+        except Exception as e:
+            self.log_result("Build Security Simulation", False, f"Test failed: {str(e)}")
+            return False
+
+    def test_secret_access_patterns(self):
+        """Test that secrets are accessed correctly in backend code"""
+        try:
+            backend_server_path = "/app/backend/server.py"
+            
+            with open(backend_server_path, 'r') as f:
+                backend_content = f.read()
+            
+            # Test 1: Check for proper os.environ.get() usage
+            import re
+            
+            # Look for CHUNKR_API_KEY usage
+            chunkr_patterns = re.findall(r'CHUNKR_API_KEY.*', backend_content)
+            proper_chunkr_access = any('os.environ.get' in pattern for pattern in chunkr_patterns)
+            
+            # Look for GEMINI_API_KEY usage  
+            gemini_patterns = re.findall(r'GEMINI_API_KEY.*', backend_content)
+            proper_gemini_access = any('os.environ.get' in pattern for pattern in gemini_patterns)
+            
+            # Test 2: Check that secrets are not hardcoded
+            hardcoded_secrets = []
+            
+            # Look for potential hardcoded API keys (but exclude the ones in .env file)
+            hardcoded_patterns = [
+                r'["\'][A-Za-z0-9_-]{32,}["\']'  # Generic long string pattern
+            ]
+            
+            for pattern in hardcoded_patterns:
+                matches = re.findall(pattern, backend_content)
+                # Filter out common non-secret patterns
+                filtered_matches = [m for m in matches if not any(x in m.lower() for x in ['test', 'example', 'sample', 'demo'])]
+                if filtered_matches:
+                    hardcoded_secrets.extend(filtered_matches)
+            
+            # Test 3: Verify conditional usage (secrets might be None)
+            has_conditional_usage = 'if not CHUNKR_API_KEY' in backend_content or 'if not GEMINI_API_KEY' in backend_content
+            
+            details = f"CHUNKR proper access: {proper_chunkr_access}, GEMINI proper access: {proper_gemini_access}, "
+            details += f"Suspicious hardcoded patterns: {len(hardcoded_secrets)}, Conditional usage: {has_conditional_usage}"
+            
+            if proper_chunkr_access and proper_gemini_access:
+                self.log_result("Secret Access Patterns", True, details)
+                return True
+            else:
+                self.log_result("Secret Access Patterns", False, details)
+                return False
+            
+        except Exception as e:
+            self.log_result("Secret Access Patterns", False, f"Test failed: {str(e)}")
+            return False
+
+    def test_ci_workflow_completeness(self):
+        """Test that CI workflow has comprehensive security checks"""
+        try:
+            ci_workflow_path = "/app/.github/workflows/ci.yml"
+            
+            with open(ci_workflow_path, 'r') as f:
+                ci_content = f.read()
+            
+            # Test 1: Check for required security jobs/steps
+            required_security_checks = [
+                "security-checks",
+                "Prevent secret leakage to frontend",
+                "Validate environment variable separation", 
+                "Scan for common secret patterns",
+                "Build frontend (security check)",
+                "Backend security validation"
+            ]
+            
+            missing_checks = []
+            for check in required_security_checks:
+                if check not in ci_content:
+                    missing_checks.append(check)
+            
+            # Test 2: Check for specific grep patterns that detect secrets
+            security_patterns = [
+                "grep.*CHUNKR_API_KEY",
+                "grep.*GEMINI_API_KEY",
+                "grep.*frontend/",
+                "grep.*backend/",
+                "os.environ"
+            ]
+            
+            missing_patterns = []
+            for pattern in security_patterns:
+                import re
+                if not re.search(pattern, ci_content):
+                    missing_patterns.append(pattern)
+            
+            # Test 3: Check for build security validation
+            has_build_security = "yarn build" in ci_content and "find build/" in ci_content
+            
+            # Test 4: Check for proper exit codes on security violations
+            has_exit_codes = "exit 1" in ci_content
+            
+            details = f"Missing security checks: {len(missing_checks)}, Missing patterns: {len(missing_patterns)}, "
+            details += f"Build security: {has_build_security}, Exit codes: {has_exit_codes}"
+            
+            if len(missing_checks) == 0 and len(missing_patterns) <= 1 and has_build_security and has_exit_codes:
+                self.log_result("CI Workflow Completeness", True, details)
+                return True
+            else:
+                self.log_result("CI Workflow Completeness", False, details)
+                return False
+            
+        except Exception as e:
+            self.log_result("CI Workflow Completeness", False, f"Test failed: {str(e)}")
+            return False
+
+    def test_production_readiness_security(self):
+        """Test production readiness from security perspective"""
+        try:
+            # Test 1: Verify no development/debug secrets
+            backend_env_path = "/app/backend/.env"
+            
+            with open(backend_env_path, 'r') as f:
+                backend_env = f.read()
+            
+            # Check that secrets are not obviously fake/development values
+            chunkr_key = None
+            gemini_key = None
+            
+            for line in backend_env.split('\n'):
+                if line.startswith('CHUNKR_API_KEY='):
+                    chunkr_key = line.split('=', 1)[1].strip('"\'')
+                elif line.startswith('GEMINI_API_KEY='):
+                    gemini_key = line.split('=', 1)[1].strip('"\'')
+            
+            # Check key formats (basic validation)
+            chunkr_valid = chunkr_key and len(chunkr_key) > 20 and chunkr_key.startswith('ch_')
+            gemini_valid = gemini_key and len(gemini_key) > 20 and gemini_key.startswith('AIza')
+            
+            # Test 2: Check that secrets are not in version control patterns
+            gitignore_path = "/app/.gitignore"
+            has_env_ignore = False
+            
+            if os.path.exists(gitignore_path):
+                with open(gitignore_path, 'r') as f:
+                    gitignore_content = f.read()
+                    has_env_ignore = '.env' in gitignore_content
+            
+            # Test 3: Verify CORS configuration is not overly permissive in production
+            backend_server_path = "/app/backend/server.py"
+            with open(backend_server_path, 'r') as f:
+                backend_content = f.read()
+            
+            # Check CORS configuration
+            cors_config_safe = True
+            if 'CORS_ORIGINS="*"' in backend_content:
+                # This might be acceptable for demo, but flag it
+                cors_config_safe = False
+            
+            details = f"CHUNKR key valid format: {chunkr_valid}, GEMINI key valid format: {gemini_valid}, "
+            details += f".env in .gitignore: {has_env_ignore}, CORS config safe: {cors_config_safe}"
+            
+            if chunkr_valid and gemini_valid:
+                self.log_result("Production Readiness Security", True, details)
+                return True
+            else:
+                self.log_result("Production Readiness Security", False, details)
+                return False
+            
+        except Exception as e:
+            self.log_result("Production Readiness Security", False, f"Test failed: {str(e)}")
+            return False
+
+    def run_ci_security_tests(self):
+        """Run CI security tests specifically for the review request"""
+        print("🔒 Starting CI Security Tests")
+        print(f"Testing against: {self.base_url}")
+        print("=" * 50)
+
+        # Run CI security tests
+        self.test_ci_security_implementation()
+        self.test_build_security_simulation()
+        self.test_secret_access_patterns()
+        self.test_ci_workflow_completeness()
+        self.test_production_readiness_security()
+
+        # Print summary
+        print("\n" + "=" * 50)
+        print(f"🔒 CI Security Test Results: {self.tests_passed}/{self.tests_run} tests passed")
+        
+        if self.tests_passed == self.tests_run:
+            print("🎉 All CI security tests passed!")
+            return True
+        else:
+            print("⚠️  Some CI security tests failed. Check details above.")
+            return False
+
     def run_all_tests(self):
         """Run all backend API tests"""
         print("🚀 Starting Backend API Tests")
