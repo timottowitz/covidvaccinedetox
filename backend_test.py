@@ -1170,8 +1170,8 @@ startxref
 def main():
     """Main test runner"""
     tester = BackendAPITester()
-    # Run async upload system tests as requested in review
-    success = tester.run_async_upload_tests()
+    # Run advanced reconciliation system tests as requested in review
+    success = tester.run_advanced_reconciliation_tests()
     return 0 if success else 1
 
 if __name__ == "__main__":
