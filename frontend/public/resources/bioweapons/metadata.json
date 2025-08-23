@@ -80,7 +80,7 @@
         "async"
       ],
       "description": "Test async PDF upload workflow",
-      "uploaded_at": "2025-08-23T03:51:00.903498+00:00"
+      "uploaded_at": "2025-08-23T03:52:24.497500+00:00"
     },
     {
       "title": "Test Async Video Upload",
@@ -95,6 +95,20 @@
       ],
       "description": "Test async video upload workflow",
       "uploaded_at": "2025-08-23T03:51:29.663887+00:00"
+    },
+    {
+      "title": "Test Async Video Upload",
+      "filename": "test_async.mp4",
+      "ext": "mp4",
+      "url": "/resources/bioweapons/test_async.mp4",
+      "kind": "video",
+      "tags": [
+        "test",
+        "video",
+        "async"
+      ],
+      "description": "Test async video upload workflow",
+      "uploaded_at": "2025-08-23T03:52:25.662436+00:00"
     }
   ]
 }
