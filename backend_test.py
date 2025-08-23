@@ -1270,6 +1270,9 @@ startxref
         
         # Advanced reconciliation tests
         self.test_advanced_reconciliation_endpoint()  # Test endpoint structure
+        self.test_improved_fuzzy_matching()  # Test specific fuzzy matching improvements
+        self.test_jaccard_similarity_algorithm()  # Test Jaccard similarity implementation
+        self.test_text_normalization_improvements()  # Test text normalization fixes
         self.test_knowledge_hash_computation()  # Test SHA256 hash computation
         self.test_frontmatter_parsing()  # Test YAML frontmatter parsing
         self.test_three_tier_matching_precedence()  # Test matching precedence
