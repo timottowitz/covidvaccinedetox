@@ -85,7 +85,15 @@ export default function KnowledgeList(){
             {selected ? (
               <Card className="card">
                 <CardHeader>
-                  <CardTitle className="card-title">{selected.filename}</CardTitle>
+                  <CardTitle className="card-title">{selected.meta?.title || selected.filename}</CardTitle>
+                  <div className="card-meta">
+                    {selected.meta?.date && <span style={{marginRight:8}}>{new Date(selected.meta.date).toLocaleDateString()}</span>}
+                    {selected.meta?.type && <span className="tag">{selected.meta.type}</span>}
+                    {selected.meta?.tags && <>
+                      {String(selected.meta.tags).split(',').map((t,i)=>(<span key={i} className="tag">{t.trim()}</span>))}
+                    </>}
+                  </div>
+                  {selected.meta?.summary && <p style={{marginTop:8}}>{selected.meta.summary}</p>}
                 </CardHeader>
                 <CardContent>
                   <div className="prose" style={{maxWidth:'100%'}}>
