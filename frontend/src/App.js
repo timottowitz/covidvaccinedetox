@@ -314,8 +314,13 @@ function ResourceCard({r, onChanged}){
         <div style={{marginTop:12}}>
           {(r.tags||[]).map(t => <span key={t} className="tag">{t}</span>)}
         </div>
-        <div className="card-actions">
+        <div className="card-actions" style={{display:'flex', gap:8, flexWrap:'wrap'}}>
           <a className="pill" href={r.url} target="_blank" rel="noreferrer">Open</a>
+          {r.knowledge_url ? (
+            <a className="pill" href={r.knowledge_url} target="_blank" rel="noreferrer">Open Knowledge</a>
+          ) : (
+            r.knowledge_job_type && <span className="tag">Processing: {r.knowledge_job_type}</span>
+          )}
         </div>
       </CardContent>
     </Card>
