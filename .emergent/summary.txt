@@ -1,0 +1,90 @@
+<analysis>
+The previous AI engineer successfully bootstrapped a full-stack mRNA vaccine knowledge base application using React, FastAPI, and MongoDB. The development followed an iterative approach, delivering core features in phases, starting with basic page structures and then enhancing content management and dynamic functionalities. Key decisions included adhering to the specified tech stack despite a user's initial query about Convex, implementing graceful fallbacks for third-party integrations (ShopRocket CDN), and developing local AI features when an external LLM key was unavailable. The process involved extensive use of  for initial setup and  for incremental changes, with  and  consistently employed for validation and debugging. The work progressed from foundational UI and API endpoints to dynamic content feeds, resource management (upload, edit, delete with auto-scan), and local AI-powered summarization and Q&A. The final state provides a robust platform for content delivery and management, with several advanced features pending.
+</analysis>
+
+<product_requirements>
+The goal is to build an authority-level website for deep-dive education on mRNA COVID vaccines, targeting patients, caregivers, medical professionals, and researchers. The site aims to be the go-to resource for understanding mRNA vaccine risks, mechanisms, and spike protein pathology.
+
+**Core Features Implemented/Planned:**
+1.  **Main Pages:** Home (vertical feed), About, Shop (ShopRocket integration), Research Articles (dynamic feed, filters, sorting), Treatments (evidence-backed protocols), Media (video-rich, Instagram-style feed).
+2.  **Bioweapon Resources:** Folder-based content () for PDFs, videos, audio. Auto-rendering system to display files as cards with icons, titles, download/preview options, and tags. This includes auto-scanning, uploading, editing, and deleting resources.
+3.  **Dynamic Research Articles Page:** Displays articles with title, author, date, DOI, abstract, keywords, and tags. Features filtering by tag, sorting, and Read More functionality. Includes RSS sync for PubMed, medRxiv, bioRxiv.
+4.  **Treatments Page:** Displays treatment protocols with name, mechanisms, dosage, links to studies, and user testimonials. Integrates with the Shop for product bundles.
+5.  **Media Page:** Instagram/YouTube-style feed with embedded videos, titles, descriptions, and source/timestamps.
+6.  **Shop Page:** Fully integrated with ShopRocket.io (store ID: ), displaying products and enabling e-commerce functionalities, with a graceful fallback if the CDN is blocked.
+7.  **AI Features (Local):** Extractive summarization for research articles and a global Q&A dialog, providing answers grounded in site content.
+</product_requirements>
+
+<key_technical_concepts>
+-   **Full-stack Development:** React (frontend), FastAPI (backend), MongoDB (database).
+-   **UI/UX:** shadcn/ui components, Tailwind CSS for styling,  for icons, modern design principles (gradients, spacing, micro-animations).
+-   **Data Handling:** UUIDs for MongoDB IDs, timezone-aware datetimes, ISO string serialization for date/time.
+-   **API Integration:** ShopRocket.io CDN integration with graceful fallback, local text processing for AI features.
+-   **Routing:** React Router DOM for frontend navigation,  prefix for all backend routes (Kubernetes ingress).
+-   **Content Management:** Folder-driven resource ingestion with , multipart file uploads, server-side file management.
+</key_technical_concepts>
+
+<code_architecture>
+
+
+
+-   
+    -   **Importance:** This is the core FastAPI backend application. It handles all API endpoints, database interactions, and business logic.
+    -   **Changes Made:**
+        -   Defined multiple API endpoints: , , , , , , , , , , .
+        -   Implemented MongoDB seeding for initial data for feed, research, resources, treatments, and media.
+        -   Integrated Pydantic models for request/response validation and UUID/datetime serialization.
+        -   Added logic for parsing  and scanning the actual folder for resources.
+        -   Implemented local extractive text processing functions for summarization and Q&A.
+        -   Added file upload, metadata update, and file deletion logic for resources.
+-   
+    -   **Importance:** The main React component, responsible for client-side routing, layout, data fetching, and rendering all pages.
+    -   **Changes Made:**
+        -   Set up React Router DOM for navigation to Home (), Research (), Shop (), Resources (), Treatments (), and Media ().
+        -   Implemented UI for each page using shadcn/ui components (Input, Popover, Calendar, Toaster, Select, Dialog, AspectRatio, etc.).
+        -   Integrated API calls to the FastAPI backend using .
+        -   Implemented ShopRocket.io integration with a graceful fallback mechanism for product display when CDN access is blocked.
+        -   Added UI for resource management: upload card, edit/delete dialogs for resources.
+        -   Incorporated local AI features: Summarize button on research articles and a global Ask dialog.
+-   
+    -   **Importance:** Contains global and component-specific styles, primarily using Tailwind CSS directives, ensuring a modern and consistent UI/UX.
+    -   **Changes Made:** Applied modern neutral color palettes, pill-shaped buttons, micro-animations, generous spacing, and custom styles adhering to design guidelines.
+-   
+    -   **Importance:** A JSON file used by the backend to store metadata (title, tags, description, URL, etc.) for resources found in the  folder. This allows for manual content curation and provides rich data for the frontend display.
+    -   **Changes Made:** Created and updated with sample entries and dynamically modified by upload/edit actions.
+-    & 
+    -   **Importance:** Manage Python and Node.js dependencies for the backend and frontend, respectively.
+    -   **Changes Made:** Updated as necessary for new libraries (e.g.,  for file uploads,  for JSON processing).
+-   
+    -   **Importance:** Entry point for global Tailwind CSS directives and base styles.
+    -   **Changes Made:** Ensures Tailwind base, components, and utilities are applied, and sets global styles for background and foreground colors.
+
+</code_architecture>
+
+<pending_tasks>
+-   Generate PDF and video thumbnails server-side for Resources.
+-   Implement drag-and-drop uploader for multiple files (bulk import).
+-   Add resource tagging rules (auto-tag based on filename patterns).
+-   Implement scheduled Research RSS sync with New badges.
+-   Upgrade local AI features to use external LLM with .
+-   Enrich Media page with  poster images and durations.
+-   Future: Newsletter, Community Forum, Interactive Timeline, PWA.
+</pending_tasks>
+
+<current_work>
+The application currently provides a comprehensive authority-level website for mRNA vaccine education. All main pages (Home, Research, Shop, Resources, Treatments, Media) are live and functional. The backend features robust API endpoints for each content type, with data seeded in MongoDB, using UUIDs for IDs and handling datetimes correctly. The frontend, built with React and shadcn/ui, offers a clean, modern UI with responsive design.
+
+Specifically:
+-   **Resources Hub:** This is the most recently enhanced section. It now features an auto-scanning capability that combines entries from  with any files directly present in the  folder. Users can upload new files via a dedicated card, and these files are saved to the public folder, with their metadata updated in . Each resource card supports inline editing of title, tags, and description, as well as deletion, which removes both the metadata entry and the physical file. Previews for PDF, video, and audio files are available via dialogs.
+-   **AI Features:** Local, extractive summarization for research articles is integrated, accessible via a Summarize button on each article. A global Ask dialog allows users to ask questions, receiving answers grounded in the site's content (research, resources, treatments, feed), without requiring an external LLM key.
+-   **Shop:** The ShopRocket.io integration is in place, with a fallback mechanism that displays sample products if the CDN for the widget is blocked, ensuring a functional user experience regardless of external script availability.
+-   **Media Page:** Displays embedded YouTube and Vimeo videos in a scrollable, responsive grid, complete with tag and source filtering.
+-   **Research Page:** Supports tag filtering and sorting by date or citation count, with a manual refresh option for the feed.
+-   **Treatments Page:** Lists treatment protocols with mechanisms, dosages, and links to studies, including call-to-action buttons for related product bundles that link to the shop.
+
+Backend text processing functions (, , , , ) have been fully defined and lint warnings resolved. The application is stable, with all endpoints passing smoke tests and UI navigation validated.
+</current_work>
+
+<optional_next_step>
+Implement thumbnail generation for PDF and video resources on the Resources page.
+</optional_next_step>
