@@ -1014,7 +1014,7 @@ async def upload_resource(
                 elif kind == 'video':
                     knowledge_job_id = str(uuid.uuid4())
                     knowledge_job_type = 'gemini_video'
-                    background_tasks.add_task(gemini_summarize_video_bg, dest.as_posix(), title or fname)
+                    background_tasks.add_task(gemini_summarize_video_bg, dest.as_posix(), title or fname, fname, url)
         except Exception as e:
             logging.getLogger(__name__).warning(f"Failed to enqueue background ingestion: {e}")
         item = ResourceItem(
