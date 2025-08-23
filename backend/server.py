@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Query
+from fastapi import FastAPI, APIRouter, HTTPException, Query, UploadFile, File, Form
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -127,7 +127,7 @@ class MediaItem(BaseModel):
     tags: List[str] = []
     published_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-# AI (local fallback) models
+# AI (local) models omitted for brevity in this diff (unchanged logic below)
 class AISummaryRequest(BaseModel):
     text: Optional[str] = None
     max_sentences: int = 5
@@ -138,7 +138,7 @@ class AISummaryResponse(BaseModel):
 
 class AIAnswerRequest(BaseModel):
     question: str
-    scope: Optional[List[str]] = None  # research | resources | treatments | feed
+    scope: Optional[List[str]] = None
 
 class AIAnswerReference(BaseModel):
     title: str
@@ -150,7 +150,7 @@ class AIAnswerResponse(BaseModel):
     references: List[AIAnswerReference] = []
 
 # -------------------------------------------------
-# Seed Data (for MVP demo)
+# Seed Data (same as before)
 # -------------------------------------------------
 async def ensure_seed():
     feed_count = await db.feed.count_documents({})
@@ -229,31 +229,8 @@ async def ensure_seed():
     treatments_count = await db.treatments.count_documents({})
     if treatments_count == 0:
         sample_treatments = [
-            {
-                "name": "NAC + Magnesium Protocol",
-                "mechanisms": [
-                    "Supports glutathione synthesis",
-                    "Reduces oxidative stress",
-                    "Potentially mitigates spike-induced ROS"
-                ],
-                "dosage": "NAC 600mg twice daily; Magnesium glycinate 200-400mg daily",
-                "duration": "4-8 weeks, reassess",
-                "links": ["https://pubmed.ncbi.nlm.nih.gov/32707342/"],
-                "tags": ["NAC", "magnesium", "antioxidant"]
-            },
-            {
-                "name": "Spike Clearing Bundle",
-                "mechanisms": [
-                    "Reduce viral protein load",
-                    "Support mitochondrial function",
-                    "Improve detox pathways"
-                ],
-                "dosage": "Follow bundle guidebook",
-                "duration": "30 days",
-                "links": ["https://www.medrxiv.org/"],
-                "tags": ["bundle", "mitochondria", "detox"],
-                "bundle_product": "Spike Clearance Bundle"
-            }
+            {"name": "NAC + Magnesium Protocol","mechanisms": ["Supports glutathione synthesis","Reduces oxidative stress","Potentially mitigates spike-induced ROS"],"dosage": "NAC 600mg twice daily; Magnesium glycinate 200-400mg daily","duration": "4-8 weeks, reassess","links": ["https://pubmed.ncbi.nlm.nih.gov/32707342/"],"tags": ["NAC", "magnesium", "antioxidant"]},
+            {"name": "Spike Clearing Bundle","mechanisms": ["Reduce viral protein load","Support mitochondrial function","Improve detox pathways"],"dosage": "Follow bundle guidebook","duration": "30 days","links": ["https://www.medrxiv.org/"],"tags": ["bundle", "mitochondria", "detox"],"bundle_product": "Spike Clearance Bundle"}
         ]
         sample_treatments = [prepare_for_mongo(Treatment(**t).model_dump()) for t in sample_treatments]
         await db.treatments.insert_many(sample_treatments)
@@ -261,20 +238,8 @@ async def ensure_seed():
     media_count = await db.media.count_documents({})
     if media_count == 0:
         sample_media = [
-            MediaItem(
-                title='Spike Protein Lecture Clip',
-                description='Overview of spike-induced pathways (demo).',
-                source='YouTube',
-                url='https://www.youtube.com/embed/dQw4w9WgXcQ',
-                tags=['spike','lecture']
-            ).model_dump(),
-            MediaItem(
-                title='Mitochondria & Energy',
-                description='Mitochondrial function overview (demo).',
-                source='Vimeo',
-                url='https://player.vimeo.com/video/76979871',
-                tags=['mitochondria','energy']
-            ).model_dump(),
+            MediaItem(title='Spike Protein Lecture Clip',description='Overview of spike-induced pathways (demo).',source='YouTube',url='https://www.youtube.com/embed/dQw4w9WgXcQ',tags=['spike','lecture']).model_dump(),
+            MediaItem(title='Mitochondria & Energy',description='Mitochondrial function overview (demo).',source='Vimeo',url='https://player.vimeo.com/video/76979871',tags=['mitochondria','energy']).model_dump(),
         ]
         sample_media = [prepare_for_mongo(it) for it in sample_media]
         await db.media.insert_many(sample_media)
@@ -284,6 +249,7 @@ async def ensure_seed():
 # -------------------------------------------------
 PUBLIC_RESOURCES_DIR = ROOT_DIR.parent / 'frontend' / 'public' / 'resources' / 'bioweapons'
 SAMPLE_RESEARCH_JSON = ROOT_DIR.parent / 'frontend' / 'public' / 'data' / 'research-feed.json'
+PUBLIC_RESOURCES_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def infer_kind_from_ext(ext: str) -> str:
@@ -294,40 +260,78 @@ def infer_kind_from_ext(ext: str) -> str:
     return 'json'
 
 
-def load_resources_from_folder() -> List[ResourceItem]:
-    items: List[ResourceItem] = []
+def load_metadata_file() -> Dict:
     meta_file = PUBLIC_RESOURCES_DIR / 'metadata.json'
     if meta_file.exists():
         try:
             with open(meta_file, 'r', encoding='utf-8') as f:
-                meta = json.load(f)
-            for m in meta.get('resources', []):
-                url = m.get('url')
-                filename = m.get('filename') or (url.split('/')[-1] if url else None)
-                ext = m.get('ext') or (filename.split('.')[-1] if filename and '.' in filename else None)
-                kind = m.get('kind') or infer_kind_from_ext(ext or '')
-                uploaded_at = m.get('uploaded_at')
-                try:
-                    uploaded_dt = datetime.fromisoformat(uploaded_at) if uploaded_at else datetime.now(timezone.utc)
-                except Exception:
-                    uploaded_dt = datetime.now(timezone.utc)
-                item = ResourceItem(
-                    title=m.get('title') or filename or 'Untitled',
-                    filename=filename,
-                    ext=ext,
-                    url=url or '',
-                    kind=kind,
-                    tags=m.get('tags', []),
-                    description=m.get('description'),
-                    uploaded_at=uploaded_dt
-                )
-                items.append(item)
-        except Exception as e:
-            logging.getLogger(__name__).warning(f"Failed to parse metadata.json: {e}")
-    return items
+                return json.load(f)
+        except Exception:
+            return {"resources": []}
+    return {"resources": []}
+
+
+def save_metadata_file(meta: Dict):
+    meta_file = PUBLIC_RESOURCES_DIR / 'metadata.json'
+    try:
+        with open(meta_file, 'w', encoding='utf-8') as f:
+            json.dump(meta, f, indent=2)
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"Failed to write metadata.json: {e}")
+
+
+def load_resources_from_folder_and_meta() -> List[ResourceItem]:
+    # 1) Metadata entries
+    meta = load_metadata_file()
+    meta_items: List[ResourceItem] = []
+    for m in meta.get('resources', []):
+        url = m.get('url')
+        filename = m.get('filename') or (url.split('/')[-1] if url else None)
+        ext = m.get('ext') or (filename.split('.')[-1] if filename and '.' in filename else None)
+        kind = m.get('kind') or infer_kind_from_ext(ext or '')
+        uploaded_at = m.get('uploaded_at')
+        try:
+            uploaded_dt = datetime.fromisoformat(uploaded_at) if uploaded_at else datetime.now(timezone.utc)
+        except Exception:
+            uploaded_dt = datetime.now(timezone.utc)
+        meta_items.append(ResourceItem(
+            title=m.get('title') or filename or 'Untitled',
+            filename=filename,
+            ext=ext,
+            url=url or '',
+            kind=kind,
+            tags=m.get('tags', []),
+            description=m.get('description'),
+            uploaded_at=uploaded_dt
+        ))
+
+    # 2) Directory scan for missing files
+    seen = set([(it.filename or it.url) for it in meta_items])
+    dir_items: List[ResourceItem] = []
+    for p in sorted(PUBLIC_RESOURCES_DIR.glob('*')):
+        if p.name == 'metadata.json' or p.is_dir():
+            continue
+        if p.name in seen:
+            continue
+        ext = p.suffix.lstrip('.')
+        kind = infer_kind_from_ext(ext)
+        url = f"/resources/bioweapons/{p.name}"
+        stat = p.stat()
+        mtime = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
+        dir_items.append(ResourceItem(
+            title=p.name,
+            filename=p.name,
+            ext=ext,
+            url=url,
+            kind=kind,
+            tags=[],
+            description=None,
+            uploaded_at=mtime
+        ))
+    return meta_items + dir_items
 
 # -------------------------------------------------
-# Research Sync from RSS (with fallback)
+# Research Sync (unchanged logic below)
 # -------------------------------------------------
 DEFAULT_FEEDS = [
     "https://pubmed.ncbi.nlm.nih.gov/rss/search/1G1RkJ2-example-spike-mitochondria/",
@@ -335,6 +339,7 @@ DEFAULT_FEEDS = [
     "https://www.biorxiv.org/rss/subject/neuroscience.xml"
 ]
 
+# (normalize_entry, fetch_and_sync_feeds, fallback_sync_from_sample remain identical)
 
 def normalize_entry(entry) -> Optional[ResearchArticle]:
     title = getattr(entry, 'title', None) or entry.get('title') if isinstance(entry, dict) else None
@@ -445,23 +450,19 @@ def fallback_sync_from_sample() -> dict:
         return {"added": 0, "updated": 0, "parsed": 0}
 
 # -------------------------------------------------
-# Simple local "AI" helpers (extractive)
+# Simple local AI helpers (unchanged)
 # -------------------------------------------------
 STOPWORDS = set("""
 a about above after again against all am an and any are as at be because been before being below between both but by could did do does doing down during each few for from further had has have having he her here hers herself him himself his how i if in into is it its itself let me more most my myself nor of on once only or other ought our ours ourselves out over own same she should so some such than that the their theirs them themselves then there these they this those through to too under until up very was we were what when where which while who whom why with would you your yours yourself yourselves
 """.split())
-
 SENT_SPLIT_RE = re.compile(r"(?<=[\.!?])\s+")
 WORD_RE = re.compile(r"[A-Za-z][A-Za-z\-']+")
-
 
 def tokenize(text: str) -> List[str]:
     return [w.lower() for w in WORD_RE.findall(text or '')]
 
-
 def sentence_split(text: str) -> List[str]:
     return re.split(SENT_SPLIT_RE, text.strip()) if text else []
-
 
 def score_sentences(text: str) -> Tuple[List[Tuple[int, float]], Dict[str, float]]:
     sentences = sentence_split(text)
@@ -478,11 +479,9 @@ def score_sentences(text: str) -> Tuple[List[Tuple[int, float]], Dict[str, float
     for idx, s in enumerate(sentences):
         stoks = tokenize(s)
         score = sum(weights.get(t, 0.0) for t in stoks)
-        # Normalize by sentence length to avoid bias
         score = score / (len(stoks) + 1e-6)
         scores.append((idx, score))
     return scores, weights
-
 
 def summarize_text(text: str, max_sentences: int = 5) -> Tuple[str, List[str]]:
     if not text:
@@ -493,11 +492,9 @@ def summarize_text(text: str, max_sentences: int = 5) -> Tuple[str, List[str]]:
     top = sorted(scores, key=lambda x: x[1], reverse=True)[:max_sentences]
     top_sorted = [s for i, s in sorted([(i, sentence_split(text)[i]) for i, _ in top], key=lambda x: x[0])]
     summary = " ".join(top_sorted)
-    # key points from top keywords
     top_keywords = [w for w, _ in sorted(weights.items(), key=lambda kv: kv[1], reverse=True)[:6] if len(w) > 3]
     key_points = [f"{w.capitalize()}" for w in top_keywords]
     return summary, key_points
-
 
 def extract_keywords(q: str, top_k: int = 6) -> List[str]:
     tokens = [t for t in tokenize(q) if t not in STOPWORDS and len(t) > 3]
@@ -557,17 +554,73 @@ async def get_research(tag: Optional[str] = Query(default=None), sort_by: str = 
 
 @api.get("/resources", response_model=List[ResourceItem])
 async def get_resources(tag: Optional[str] = Query(default=None)):
-    folder_items = load_resources_from_folder()
-    if folder_items:
-        data = folder_items
-    else:
-        await ensure_seed()
-        docs = await db.resources.find({}).sort("uploaded_at", -1).to_list(200)
-        data = [ResourceItem(**parse_from_mongo(it)) for it in docs]
+    data = load_resources_from_folder_and_meta()
     if tag:
         t = tag.lower()
         data = [r for r in data if any(t in (x.lower()) for x in (r.tags or []))]
     return data
+
+@api.post("/resources/upload", response_model=ResourceItem)
+async def upload_resource(
+    file: UploadFile = File(...),
+    title: Optional[str] = Form(default=None),
+    tags: Optional[str] = Form(default=None),  # comma separated
+    description: Optional[str] = Form(default=None)
+):
+    # Save file to PUBLIC_RESOURCES_DIR
+    try:
+        # sanitize filename minimal
+        fname = Path(file.filename).name
+        dest = PUBLIC_RESOURCES_DIR / fname
+        content = await file.read()
+        with open(dest, 'wb') as f:
+            f.write(content)
+        ext = dest.suffix.lstrip('.')
+        kind = infer_kind_from_ext(ext)
+        url = f"/resources/bioweapons/{fname}"
+        # update metadata.json
+        meta = load_metadata_file()
+        resources = meta.get('resources', [])
+        now_iso = datetime.now(timezone.utc).isoformat()
+        # if exists, update; else append
+        updated = False
+        for r in resources:
+            if r.get('filename') == fname or r.get('url') == url:
+                if title: r['title'] = title
+                if description is not None: r['description'] = description
+                if tags is not None:
+                    r['tags'] = [t.strip() for t in tags.split(',') if t.strip()]
+                r['ext'] = ext
+                r['kind'] = kind
+                r['uploaded_at'] = now_iso
+                updated = True
+                break
+        if not updated:
+            resources.append({
+                'title': title or fname,
+                'filename': fname,
+                'ext': ext,
+                'url': url,
+                'kind': kind,
+                'tags': [t.strip() for t in (tags or '').split(',') if t.strip()],
+                'description': description,
+                'uploaded_at': now_iso
+            })
+        meta['resources'] = resources
+        save_metadata_file(meta)
+        item = ResourceItem(
+            title=title or fname,
+            filename=fname,
+            ext=ext,
+            url=url,
+            kind=kind,
+            tags=[t.strip() for t in (tags or '').split(',') if t.strip()],
+            description=description,
+            uploaded_at=datetime.fromisoformat(now_iso)
+        )
+        return item
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
 
 @api.get("/treatments", response_model=List[Treatment])
 async def get_treatments(tag: Optional[str] = Query(default=None)):
@@ -588,7 +641,7 @@ async def get_media(tag: Optional[str] = Query(default=None), source: Optional[s
     return [MediaItem(**parse_from_mongo(it)) for it in items]
 
 # -------------------------
-# Local AI endpoints
+# Local AI endpoints (unchanged)
 # -------------------------
 @api.post("/ai/summarize_local", response_model=AISummaryResponse)
 async def ai_summarize_local(body: AISummaryRequest):
@@ -605,8 +658,7 @@ async def ai_answer_local(body: AIAnswerRequest):
     if not q:
         raise HTTPException(status_code=400, detail="question is required")
     scopes = set((body.scope or ['research','resources','treatments','feed']))
-    # gather documents
-    docs: List[Tuple[str, str, Optional[str], str]] = []  # (type, title, link, text)
+    docs: List[Tuple[str, str, Optional[str], str]] = []
     if 'research' in scopes:
         arts = await db.articles.find({}).to_list(200)
         for a in arts:
@@ -629,13 +681,11 @@ async def ai_answer_local(body: AIAnswerRequest):
             f2 = parse_from_mongo(f)
             docs.append(('feed', f2.get('title',''), f2.get('url'), f"{f2.get('title','')}. {f2.get('summary','') or ''}"))
 
-    # score by keyword overlaps
     kw = extract_keywords(q)
     def score(text: str) -> float:
         toks = tokenize(text)
         if not toks: return 0.0
         s = sum(1.0 for k in kw if k in toks)
-        # small boost for multiple occurrences
         for k in kw:
             s += 0.2 * toks.count(k)
         return s / math.sqrt(len(toks) + 1)
@@ -649,7 +699,6 @@ async def ai_answer_local(body: AIAnswerRequest):
     if not top:
         return AIAnswerResponse(answer="I could not find relevant items locally. Try refining your question.", references=[])
 
-    # build concise answer: summarize concatenated top texts
     combined = "\n\n".join(t[3] for t in top)
     summary, _ = summarize_text(combined, max_sentences=5)
     refs = [AIAnswerReference(title=t[1], link=t[2], type=t[0]) for t in top]
