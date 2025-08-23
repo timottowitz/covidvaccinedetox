@@ -332,6 +332,130 @@ PUBLIC_RESOURCES_DIR.mkdir(parents=True, exist_ok=True)
 THUMBS_DIR = PUBLIC_RESOURCES_DIR / 'thumbnails'
 THUMBS_DIR.mkdir(parents=True, exist_ok=True)
 
+# -------------------------
+# Knowledge base integration (Chunkr & Gemini)
+# -------------------------
+KNOWLEDGE_DIR = ROOT_DIR.parent / 'frontend' / 'public' / 'knowledge'
+KNOWLEDGE_DIR.mkdir(parents=True, exist_ok=True)
+
+CHUNKR_API_KEY = os.environ.get('CHUNKR_API_KEY')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+
+
+def _write_markdown_atomic(path: Path, content: str) -> None:
+    try:
+        tmp = path.with_suffix(path.suffix + '.tmp')
+        with open(tmp, 'w', encoding='utf-8') as f:
+            f.write(content)
+        os.replace(tmp, path)
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"Failed to write markdown {path}: {e}")
+
+
+def chunkr_ingest_pdf_bg(file_path_str: str, title: str, tags: List[str], description: Optional[str]) -> Optional[str]:
+    if not CHUNKR_API_KEY:
+        return None
+    try:
+        headers = {"Authorization": f"Bearer {CHUNKR_API_KEY}"}
+        with open(file_path_str, 'rb') as fh:
+            files = {"file": (Path(file_path_str).name, fh, 'application/pdf')}
+            data = {
+                "source_type": "research_article",
+                "metadata": json.dumps({
+                    "title": title,
+                    "tags": tags,
+                    "description": description or ""
+                })
+            }
+            resp = requests.post("https://api.chunkr.ai/v1/ingest", headers=headers, data=data, files=files, timeout=120)
+        if resp.status_code != 200:
+            logging.getLogger(__name__).warning(f"Chunkr ingest failed: {resp.status_code} {resp.text}")
+            return None
+        result = resp.json()
+        ingest_id = result.get('id') or str(uuid.uuid4())
+        summary = result.get('summary') or ""
+        key_points = result.get('key_points') or []
+        chunks = result.get('chunks') or []
+        meta = result.get('metadata') or {}
+        source_url = result.get('source_url') or ""
+        kp_md = "\n".join([f"- **{p}**" for p in key_points])
+        chunks_parts: List[str] = []
+        for i, c in enumerate(chunks):
+            idx = c.get('chunk_index', i)
+            pg = c.get('page_number', '?')
+            txt = c.get('text', '') or ''
+            chunks_parts.append(f"\n### Chunk {idx} (p{pg})\n\n{txt}\n")
+        chunks_md = "".join(chunks_parts)
+        tags_join = ", ".join(meta.get('tags') or tags)
+        title_md = meta.get('title') or title
+        date_str = datetime.now(timezone.utc).date().isoformat()
+        sanitized_summary = summary.replace('"', '\\"')
+        md_lines = [
+            "---",
+            f"title: {title_md}",
+            f"source: {source_url}",
+            "type: research_article",
+            f"tags: {tags_join}",
+            f"date: {date_str}",
+            f"summary: \"{sanitized_summary}\"",
+            "---",
+            "",
+            "## Key Points",
+            "",
+            kp_md,
+            "",
+            "## Full Text (Chunks)",
+            "",
+            chunks_md
+        ]
+        md = "\n".join(md_lines)
+        out = KNOWLEDGE_DIR / f"{ingest_id}.md"
+        _write_markdown_atomic(out, md)
+        return f"/knowledge/{out.name}"
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"chunkr_ingest_pdf_bg error: {e}")
+        return None
+
+
+def gemini_summarize_video_bg(file_path_str: str, title: str) -> Optional[str]:
+    if not GEMINI_API_KEY:
+        return None
+    try:
+        from google import genai
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        uploaded = client.files.upload(file=file_path_str)
+        import time
+        for _ in range(30):
+            info = client.files.get(name=uploaded.name)
+            if getattr(info, 'state', None) == 'ACTIVE':
+                break
+            time.sleep(2)
+        prompt = "Provide a structured markdown summary with sections: Main Topics, Summary, Key Points, Timestamps, Action Items."
+        resp = client.models.generate_content(model="gemini-2.5-flash", contents=[uploaded, prompt])
+        text = getattr(resp, 'text', None) or ""
+        if not text:
+            return None
+        date_str = datetime.now(timezone.utc).date().isoformat()
+        md = "\n".join([
+            "---",
+            f"title: {title}",
+            "type: video",
+            f"date: {date_str}",
+            "---",
+            "",
+            text
+        ])
+        out = KNOWLEDGE_DIR / f"{uuid.uuid4()}_video.md"
+        _write_markdown_atomic(out, md)
+        try:
+            client.files.delete(name=uploaded.name)
+        except Exception:
+            pass
+        return f"/knowledge/{out.name}"
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"gemini_summarize_video_bg error: {e}")
+        return None
+
 
 def infer_kind_from_ext(ext: str) -> str:
     e = (ext or '').lower().strip('.')
