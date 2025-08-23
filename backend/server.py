@@ -382,6 +382,86 @@ KNOWLEDGE_DIR.mkdir(parents=True, exist_ok=True)
 CHUNKR_API_KEY = os.environ.get('CHUNKR_API_KEY')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
+# File upload constants  
+MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
+ALLOWED_MIME_TYPES = {
+    'application/pdf',
+    'video/mp4', 
+    'video/quicktime',
+    'video/webm'
+}
+
+
+def validate_file_upload(file: UploadFile) -> Tuple[bool, Optional[str]]:
+    """Validate file size and MIME type. Returns (is_valid, error_message)"""
+    if file.size and file.size > MAX_FILE_SIZE:
+        return False, f"File size {file.size} exceeds maximum allowed size of {MAX_FILE_SIZE} bytes"
+    
+    # Use python-magic to detect MIME type from content
+    try:
+        file_content = file.file.read(2048)  # Read first 2KB for MIME detection
+        file.file.seek(0)  # Reset file pointer
+        detected_mime = magic.from_buffer(file_content, mime=True)
+        
+        if detected_mime not in ALLOWED_MIME_TYPES:
+            return False, f"File type '{detected_mime}' not allowed. Allowed types: {', '.join(ALLOWED_MIME_TYPES)}"
+            
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"MIME type detection failed: {e}")
+        # Fallback to content_type header if magic fails
+        if file.content_type not in ALLOWED_MIME_TYPES:
+            return False, f"File type '{file.content_type}' not allowed. Allowed types: {', '.join(ALLOWED_MIME_TYPES)}"
+    
+    return True, None
+
+
+def create_task(idempotency_key: str, resource_filename: str = None) -> TaskInfo:
+    """Create a new upload task"""
+    task_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
+    
+    task_info = TaskInfo(
+        task_id=task_id,
+        idempotency_key=idempotency_key,
+        status=TaskStatus.PENDING,
+        created_at=now,
+        updated_at=now,
+        resource_filename=resource_filename
+    )
+    
+    tasks_storage[task_id] = task_info
+    return task_info
+
+
+def get_task(task_id: str) -> Optional[TaskInfo]:
+    """Get task by ID"""
+    return tasks_storage.get(task_id)
+
+
+def update_task_status(task_id: str, status: TaskStatus, result: ResourceItem = None, error_message: str = None) -> bool:
+    """Update task status and result"""
+    if task_id not in tasks_storage:
+        return False
+        
+    task_info = tasks_storage[task_id]
+    task_info.status = status
+    task_info.updated_at = datetime.now(timezone.utc)
+    
+    if result:
+        task_info.result = result
+    if error_message:
+        task_info.error_message = error_message
+        
+    return True
+
+
+def find_task_by_idempotency_key(idempotency_key: str) -> Optional[TaskInfo]:
+    """Find existing task by idempotency key"""
+    for task_info in tasks_storage.values():
+        if task_info.idempotency_key == idempotency_key:
+            return task_info
+    return None
+
 
 def _write_markdown_atomic(path: Path, content: str) -> None:
     try:
