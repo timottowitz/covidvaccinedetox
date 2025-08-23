@@ -1631,9 +1631,9 @@ async def knowledge_status():
     return {"files": files}
 
 @api.post("/knowledge/reconcile")
-async def knowledge_reconcile():
-    updated = _knowledge_reconcile_internal()
-    return {"updated": updated}
+async def knowledge_reconcile() -> ReconcileResult:
+    """Advanced reconciliation with hash-based matching and detailed reporting"""
+    return advanced_knowledge_reconcile()
 
 
 @api.get("/knowledge/task_status")
