@@ -101,3 +101,45 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+---
+user_problem_statement: "Implement server-side thumbnail generation for PDF and video resources, and display them on the Resources page."
+backend:
+  - task: "Thumbnail generation for PDF and video"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added thumbnail helpers using PyMuPDF, OpenCV & Pillow; added lazy generation in GET /api/resources and on upload; wrote files to frontend/public/resources/bioweapons/thumbnails; extended ResourceItem with thumbnail_url."
+frontend:
+  - task: "Display resource thumbnails on cards"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/App.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "ResourceCard now renders thumbnail image via r.thumbnail_url with AspectRatio 16:9; kept fallbacks intact."
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Thumbnail generation endpoint behavior on list and upload"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "Please verify backend: hitting GET /api/resources should generate thumbnails for pdf/video items when missing and return thumbnail_url; uploading a new pdf/video should create thumbnail immediately. No external URLs/ports changed."
