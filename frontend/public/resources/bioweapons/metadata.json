@@ -11,7 +11,9 @@
         "mechanisms"
       ],
       "description": "Reference PDF used as a demo preview.",
-      "uploaded_at": "2024-07-15T10:00:00+00:00"
+      "uploaded_at": "2024-07-15T10:00:00+00:00",
+      "knowledge_url": "/knowledge/spike-protein-mechanisms.md",
+      "knowledge_hash": "547fda294745c018e704cc5f18d8a92b2f3e07ac7b200e6e117744efc507293a"
     },
     {
       "title": "bifidobacterium-decrease.mp4",
