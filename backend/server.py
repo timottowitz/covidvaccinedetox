@@ -76,7 +76,7 @@ def summarize_text(text: str, max_sentences: int = 5) -> Tuple[str, List[str]]:
 
 
 def extract_keywords(q: str, top_k: int = 6) -> List[str]:
-    tokens = [t for t in tokenize(q) if t not in STOPWORDS and len(t) &gt; 3]
+    tokens = [t for t in tokenize(q) if t not in STOPWORDS and len(t) > 3]
     freqs: Dict[str, int] = {}
     for t in tokens:
         freqs[t] = freqs.get(t, 0) + 1
@@ -428,9 +428,9 @@ def _generate_video_thumbnail(src_path: Path, dst_path: Path, time_sec: float = 
             return False
         fps = cap.get(cv2.CAP_PROP_FPS) or 0
         frame_count = cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0
-        frame_index = int(fps * time_sec) if fps &gt; 0 else 0
+        frame_index = int(fps * time_sec) if fps > 0 else 0
         # fallback to midpoint if 1s beyond video
-        if fps &gt; 0 and frame_count &gt; 0 and frame_index &gt;= frame_count:
+        if fps > 0 and frame_count > 0 and frame_index >= frame_count:
             frame_index = int(frame_count // 2)
         cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
         ok, frame = cap.read()
@@ -1019,7 +1019,7 @@ async def ai_answer_local(body: AIAnswerRequest):
     scored: List[Tuple[float, Tuple[str,str,Optional[str],str]]] = []
     for d in docs:
         sc = score(d[3])
-        if sc &gt; 0: scored.append((sc, d))
+        if sc > 0: scored.append((sc, d))
     top = [d for _, d in sorted(scored, key=lambda x: x[0], reverse=True)[:3]]
 
     if not top:
