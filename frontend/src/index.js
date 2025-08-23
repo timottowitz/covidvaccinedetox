@@ -13,7 +13,10 @@ if (typeof window !== 'undefined') {
            s.includes('failed to connect to metamask') ||
            s.includes('ethereum') ||
            s.includes('web3') ||
-           s.includes('wallet');
+           s.includes('wallet') ||
+           s.includes('nkbihfbeogaeaoehlefnkodbefgpgknn') ||  // MetaMask extension ID
+           s.includes('scripts/inpage.js') ||                 // MetaMask script
+           s.includes('connect') && s.includes('metamask');   // Connect to MetaMask
   };
   
   // Handle script errors
