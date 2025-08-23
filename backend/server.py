@@ -19,6 +19,8 @@ import time
 import asyncio
 from enum import Enum
 import magic
+import hashlib
+import yaml
 
 # -------------------------------------------------
 # Text Processing Constants and Functions
