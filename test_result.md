@@ -141,6 +141,17 @@ agent_communication:
 ---
 user_problem_statement: "Implement server-side thumbnail generation for PDF and video resources, and display them on the Resources page."
 backend:
+  - task: "Async upload endpoint with 202 response, task tracking, and limits"
+    implemented: true
+    working: "NA" 
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented task tracking models (TaskStatus, TaskInfo, TaskResponse), file validation with size (100MB) and MIME type limits, refactored /api/resources/upload to return 202 Accepted with task_id and idempotency_key, added /api/knowledge/task_status endpoint for monitoring, and background task processing with async wrappers."
   - task: "Thumbnail generation for PDF and video"
     implemented: true
     working: true
