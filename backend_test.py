@@ -1697,7 +1697,18 @@ startxref
         print(f"Testing against: {self.base_url}")
         print("=" * 50)
 
-        # Run all tests
+        # CI Security Tests (HIGH PRIORITY)
+        print("\n🔒 CI SECURITY TESTS")
+        print("-" * 30)
+        self.test_ci_security_implementation()
+        self.test_build_security_simulation()
+        self.test_secret_access_patterns()
+        self.test_ci_workflow_completeness()
+        self.test_production_readiness_security()
+
+        # Core API tests
+        print("\n🌐 CORE API TESTS")
+        print("-" * 30)
         self.test_health_endpoint()
         self.test_root_endpoint()
         self.test_feed_endpoint()
