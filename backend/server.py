@@ -1391,6 +1391,36 @@ async def knowledge_reconcile():
     updated = _knowledge_reconcile_internal()
     return {"updated": updated}
 
+
+@api.get("/knowledge/task_status")
+async def get_task_status(task_id: str = Query(...)):
+    """Get the status of an upload task"""
+    task_info = get_task(task_id)
+    if not task_info:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    response_data = {
+        "task_id": task_info.task_id,
+        "idempotency_key": task_info.idempotency_key,
+        "status": task_info.status,
+        "created_at": task_info.created_at.isoformat(),
+        "updated_at": task_info.updated_at.isoformat()
+    }
+    
+    if task_info.resource_filename:
+        response_data["resource_filename"] = task_info.resource_filename
+        
+    if task_info.resource_url:
+        response_data["resource_url"] = task_info.resource_url
+        
+    if task_info.result:
+        response_data["result"] = task_info.result.model_dump()
+        
+    if task_info.error_message:
+        response_data["error_message"] = task_info.error_message
+        
+    return response_data
+
 # -------------------------------------------------
 # Other routes
 # -------------------------------------------------
