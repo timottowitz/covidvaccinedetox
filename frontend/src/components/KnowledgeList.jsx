@@ -45,10 +45,16 @@ export default function KnowledgeList(){
     setSelected(f);
     try{
       const res = await fetch(f.url);
-      const txt = await res.text();
+      let txt = await res.text();
+      // Anchor IDs: add id="c-N" to headings like "### Chunk N"
+      txt = txt.replace(/###\s+Chunk\s+(\d+)\s*\(([^)]+)\)/g, (m, idx, rest) => `### Chunk ${idx} (${rest})\n<a id="c-${idx}"></a>`);
       const { meta, body } = parseFrontmatter(txt);
       setMd(body);
       setSelected({ ...f, meta });
+      // Update URL search param for deep link
+      const next = new URLSearchParams(searchParams);
+      next.set('open', f.filename);
+      setSearchParams(next);
     } catch {
       setMd('# Failed to load');
     }
