@@ -13,7 +13,20 @@ from datetime import datetime
 from pathlib import Path
 
 class BackendAPITester:
-    def __init__(self, base_url="https://research-vault-2.preview.emergentagent.com"):
+    def __init__(self, base_url=None):
+        # Use environment variable or fallback to localhost
+        if base_url is None:
+            # Read from frontend .env file
+            env_path = Path(__file__).parent / "frontend" / ".env"
+            if env_path.exists():
+                with open(env_path, 'r') as f:
+                    for line in f:
+                        if line.startswith('REACT_APP_BACKEND_URL='):
+                            base_url = line.split('=', 1)[1].strip()
+                            break
+            if base_url is None:
+                base_url = "http://localhost:8001"
+        
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
         self.tests_run = 0
