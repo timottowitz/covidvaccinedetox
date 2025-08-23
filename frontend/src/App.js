@@ -125,4 +125,135 @@ function App() {
   );
 }
 
+// Missing component definitions
+function Home() {
+  return (
+    <div className="App">
+      <Header />
+      <div className="container">
+        <div className="grid">
+          <Card className="card" style={{gridColumn:'span 12'}}>
+            <CardHeader>
+              <CardTitle className="card-title">Welcome to mRNA Vaccine Knowledge Base</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p>Navigate using the buttons above to explore research, resources, and knowledge.</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Research() {
+  return (
+    <div className="App">
+      <Header />
+      <div className="container">
+        <div className="grid">
+          <Card className="card" style={{gridColumn:'span 12'}}>
+            <CardHeader>
+              <CardTitle className="card-title">Research</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p>Research page content goes here.</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Resources() {
+  return (
+    <div className="App">
+      <Header />
+      <div className="container">
+        <div className="grid">
+          <Card className="card" style={{gridColumn:'span 12'}}>
+            <CardHeader>
+              <CardTitle className="card-title">Resources</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Input placeholder="Filter resources..." />
+              <div style={{marginTop: 16}}>
+                <Card className="card">
+                  <CardHeader>
+                    <CardTitle className="card-title">Add resources</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p>Add new resources here.</p>
+                  </CardContent>
+                </Card>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Media() {
+  return (
+    <div className="App">
+      <Header />
+      <div className="container">
+        <div className="grid">
+          <Card className="card" style={{gridColumn:'span 12'}}>
+            <CardHeader>
+              <CardTitle className="card-title">Media</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p>Media page content goes here.</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Treatments() {
+  return (
+    <div className="App">
+      <Header />
+      <div className="container">
+        <div className="grid">
+          <Card className="card" style={{gridColumn:'span 12'}}>
+            <CardHeader>
+              <CardTitle className="card-title">Treatments</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p>Treatments page content goes here.</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Shop() {
+  return (
+    <div className="App">
+      <Header />
+      <div className="container">
+        <div className="grid">
+          <Card className="card" style={{gridColumn:'span 12'}}>
+            <CardHeader>
+              <CardTitle className="card-title">Shop</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p>Shop page content goes here.</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default App;
