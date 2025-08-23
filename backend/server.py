@@ -10,6 +10,8 @@ from typing import List, Optional
 import uuid
 from datetime import datetime, date, time, timezone
 import json
+import requests
+import feedparser
 
 # -------------------------------------------------
 # Env & DB
@@ -72,7 +74,7 @@ class StatusCheckCreate(BaseModel):
 
 class FeedItem(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    type: str  # 'article' | 'video' | 'resource'
+    type: str
     title: str
     summary: str
     url: str
@@ -98,7 +100,7 @@ class ResourceItem(BaseModel):
     filename: Optional[str] = None
     ext: Optional[str] = None
     url: str
-    kind: str  # 'pdf' | 'video' | 'audio' | 'json'
+    kind: str
     tags: List[str] = []
     description: Optional[str] = None
     uploaded_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -118,8 +120,8 @@ class MediaItem(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     title: str
     description: Optional[str] = None
-    source: str  # YouTube | Vimeo | Other
-    url: str     # Prefer embed URLs (youtube embed, vimeo player)
+    source: str
+    url: str
     tags: List[str] = []
     published_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -257,6 +259,7 @@ async def ensure_seed():
 # File-based Resources Loader (auto-render)
 # -------------------------------------------------
 PUBLIC_RESOURCES_DIR = ROOT_DIR.parent / 'frontend' / 'public' / 'resources' / 'bioweapons'
+SAMPLE_RESEARCH_JSON = ROOT_DIR.parent / 'frontend' / 'public' / 'data' / 'research-feed.json'
 
 
 def infer_kind_from_ext(ext: str) -> str:
@@ -300,6 +303,128 @@ def load_resources_from_folder() -> List[ResourceItem]:
     return items
 
 # -------------------------------------------------
+# Research Sync from RSS (with fallback)
+# -------------------------------------------------
+DEFAULT_FEEDS = [
+    # PubMed example RSS for keywords (demo URL)
+    "https://pubmed.ncbi.nlm.nih.gov/rss/search/1G1RkJ2-example-spike-mitochondria/",
+    # medRxiv/bioRxiv demo endpoints (not guaranteed in test env)
+    "https://connect.medrxiv.org/relate/feed/181?custom=1&query=spike%20protein",
+    "https://www.biorxiv.org/rss/subject/neuroscience.xml"
+]
+
+
+def normalize_entry(entry) -> Optional[ResearchArticle]:
+    title = getattr(entry, 'title', None) or entry.get('title') if isinstance(entry, dict) else None
+    link = getattr(entry, 'link', None) or entry.get('link') if isinstance(entry, dict) else None
+    summary = getattr(entry, 'summary', None) or entry.get('summary') if isinstance(entry, dict) else None
+    published_parsed = getattr(entry, 'published_parsed', None) or entry.get('published_parsed') if isinstance(entry, dict) else None
+    published = date.today()
+    if published_parsed:
+        try:
+            published = datetime(*published_parsed[:6], tzinfo=timezone.utc).date()
+        except Exception:
+            published = date.today()
+    authors = []
+    if hasattr(entry, 'authors'):
+        authors = [a.get('name') for a in entry.authors if isinstance(a, dict) and a.get('name')]
+    doi = None
+    if hasattr(entry, 'links'):
+        for l in entry.links:
+            href = l.get('href')
+            if href and 'doi.org' in href:
+                doi = href.split('doi.org/')[-1]
+                break
+    # basic tag inference
+    text = f"{title} {summary}".lower() if (title or summary) else ''
+    tags = []
+    if 'spike' in text: tags.append('#spike')
+    if 'mitochond' in text: tags.append('#mitochondria')
+    if 'gut' in text: tags.append('#gut')
+    return ResearchArticle(
+        title=title or 'Untitled',
+        authors=authors,
+        published_date=published,
+        doi=doi,
+        link=link,
+        abstract=summary,
+        keywords=[],
+        tags=tags,
+        citation_count=0
+    )
+
+
+def fetch_and_sync_feeds(feeds: List[str]) -> dict:
+    added = 0
+    updated = 0
+    total = 0
+    for url in feeds:
+        try:
+            resp = requests.get(url, timeout=10)
+            resp.raise_for_status()
+            parsed = feedparser.parse(resp.text)
+            for entry in parsed.entries[:50]:
+                art = normalize_entry(entry)
+                if not art: continue
+                total += 1
+                # dedupe by doi or link
+                q = {}
+                if art.doi:
+                    q['doi'] = art.doi
+                elif art.link:
+                    q['link'] = art.link
+                else:
+                    q['title'] = art.title
+                existing = db.articles.find_one(q)
+                if existing:
+                    updated += 1
+                    db.articles.update_one(q, {"$set": prepare_for_mongo(art.model_dump())})
+                else:
+                    db.articles.insert_one(prepare_for_mongo(art.model_dump()))
+                    added += 1
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"Feed fetch failed for {url}: {e}")
+    return {"added": added, "updated": updated, "parsed": total}
+
+
+def fallback_sync_from_sample() -> dict:
+    if not SAMPLE_RESEARCH_JSON.exists():
+        return {"added": 0, "updated": 0, "parsed": 0}
+    try:
+        with open(SAMPLE_RESEARCH_JSON, 'r', encoding='utf-8') as f:
+            payload = json.load(f)
+        added = 0
+        updated = 0
+        total = 0
+        for it in payload.get('items', [])[:50]:
+            total += 1
+            art = ResearchArticle(
+                title=it.get('title', 'Untitled'),
+                authors=it.get('authors', []),
+                published_date=date.fromisoformat(it.get('published', date.today().isoformat())),
+                doi=it.get('doi'),
+                link=it.get('link'),
+                abstract=it.get('summary'),
+                keywords=it.get('keywords', []),
+                tags=['#spike'] if 'spike' in (it.get('summary','')+it.get('title','')).lower() else [],
+                citation_count=0
+            )
+            q = {k: v for k, v in [("doi", art.doi), ("link", art.link)] if v}
+            if not q:
+                q = {"title": art.title}
+            existing = db.articles.find_one(q)
+            if existing:
+                updated += 1
+                db.articles.update_one(q, {"$set": prepare_for_mongo(art.model_dump())})
+            else:
+                db.articles.insert_one(prepare_for_mongo(art.model_dump()))
+                added += 1
+        return {"added": added, "updated": updated, "parsed": total}
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"Sample feed parse failed: {e}")
+        return {"added": 0, "updated": 0, "parsed": 0}
+
+# -------------------------------------------------
 # Routes
 # -------------------------------------------------
 @api.get("/")
@@ -313,6 +438,14 @@ async def health():
         return {"status": "ok"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@api.get("/research/sync")
+async def research_sync():
+    # Try live feeds, then fall back to local sample
+    result = fetch_and_sync_feeds(DEFAULT_FEEDS)
+    if result.get('parsed', 0) == 0:
+        result = fallback_sync_from_sample()
+    return result
 
 @api.post("/status", response_model=StatusCheck)
 async def create_status_check(input: StatusCheckCreate):

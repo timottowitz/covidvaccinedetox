@@ -1,0 +1,22 @@
+{
+  "items": [
+    {
+      "title": "Mitochondrial dynamics in response to spike protein exposure",
+      "link": "https://example.org/mitochondrial-dynamics",
+      "summary": "Preprint suggesting altered fission/fusion balance and ROS elevation.",
+      "published": "2024-07-12",
+      "authors": ["Rao P", "Kim Y"],
+      "keywords": ["spike protein", "mitochondria", "ROS"],
+      "doi": "10.9999/demo.2024.0712"
+    },
+    {
+      "title": "Gut dysbiosis and Bifidobacterium decline post mRNA vaccination",
+      "link": "https://example.org/bifidobacterium-decline",
+      "summary": "Observational cohort reports significant Bifidobacterium shifts.",
+      "published": "2024-06-15",
+      "authors": ["Liang Z", "Torres M"],
+      "keywords": ["gut", "bifidobacterium", "dysbiosis"],
+      "doi": "10.9999/demo.2024.0615"
+    }
+  ]
+}
