@@ -487,11 +487,14 @@ def gemini_summarize_video_bg(file_path_str: str, title: str, resource_filename:
         slug = re.sub(r"[^a-zA-Z0-9_\-]+","-", (title or "video").lower()).strip('-')[:80] or "video"
         out = _unique_knowledge_path(slug, suffix="_video")
         _write_markdown_atomic(out, md)
+        url = f"/knowledge/{out.name}"
         try:
             client.files.delete(name=uploaded.name)
         except Exception:
             pass
-        return f"/knowledge/{out.name}"
+        if resource_filename or resource_url:
+            _update_metadata_knowledge(resource_filename, resource_url, url)
+        return url
     except Exception as e:
         logging.getLogger(__name__).warning(f"gemini_summarize_video_bg error: {e}")
         return None
