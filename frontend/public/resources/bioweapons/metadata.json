@@ -1,0 +1,34 @@
+{
+  "resources": [
+    {
+      "title": "Spike-Protein-Toxicity.pdf",
+      "filename": "Spike-Protein-Toxicity.pdf",
+      "ext": "pdf",
+      "url": "https://arxiv.org/pdf/1706.03762.pdf",
+      "kind": "pdf",
+      "tags": ["spike protein", "mechanisms"],
+      "description": "Reference PDF used as a demo preview.",
+      "uploaded_at": "2024-07-15T10:00:00+00:00"
+    },
+    {
+      "title": "bifidobacterium-decrease.mp4",
+      "filename": "bifidobacterium-decrease.mp4",
+      "ext": "mp4",
+      "url": "https://samplelib.com/lib/preview/mp4/sample-5s.mp4",
+      "kind": "video",
+      "tags": ["gut", "bifidobacterium", "dysbiosis"],
+      "description": "Short sample video clip for demo.",
+      "uploaded_at": "2024-08-01T08:00:00+00:00"
+    },
+    {
+      "title": "lecture-excerpt.m4a",
+      "filename": "lecture-excerpt.m4a",
+      "ext": "m4a",
+      "url": "https://samplelib.com/lib/preview/mp3/sample-3s.mp3",
+      "kind": "audio",
+      "tags": ["podcast", "lecture"],
+      "description": "Short sample audio for demo.",
+      "uploaded_at": "2024-08-02T08:00:00+00:00"
+    }
+  ]
+}

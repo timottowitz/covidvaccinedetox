@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 import uuid
 from datetime import datetime, date, time, timezone
+import json
 
 # -------------------------------------------------
 # Env & DB
@@ -110,7 +111,7 @@ class Treatment(BaseModel):
     duration: Optional[str] = None
     links: List[str] = []
     tags: List[str] = []
-    bundle_product: Optional[str] = None  # ShopRocket product label/id
+    bundle_product: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 # -------------------------------------------------
@@ -193,26 +194,80 @@ async def ensure_seed():
     treatments_count = await db.treatments.count_documents({})
     if treatments_count == 0:
         sample_treatments = [
-            Treatment(
-                name='NAC + Magnesium Protocol',
-                mechanisms=['Supports glutathione synthesis','Reduces oxidative stress','Potentially mitigates spike-induced ROS'],
-                dosage='NAC 600mg twice daily; Magnesium glycinate 200-400mg daily',
-                duration='4-8 weeks, reassess',
-                links=['https://pubmed.ncbi.nlm.nih.gov/32707342/'],
-                tags=['NAC','magnesium','antioxidant']
-            ).model_dump(),
-            Treatment(
-                name='Spike Clearing Bundle',
-                mechanisms=['Reduce viral protein load','Support mitochondrial function','Improve detox pathways'],
-                dosage='Follow bundle guidebook',
-                duration='30 days',
-                links=['https://www.medrxiv.org/'],
-                tags=['bundle','mitochondria','detox'],
-                bundle_product='Spike Clearance Bundle'
-            ).model_dump(),
+            {
+                "name": "NAC + Magnesium Protocol",
+                "mechanisms": [
+                    "Supports glutathione synthesis",
+                    "Reduces oxidative stress",
+                    "Potentially mitigates spike-induced ROS"
+                ],
+                "dosage": "NAC 600mg twice daily; Magnesium glycinate 200-400mg daily",
+                "duration": "4-8 weeks, reassess",
+                "links": ["https://pubmed.ncbi.nlm.nih.gov/32707342/"],
+                "tags": ["NAC", "magnesium", "antioxidant"]
+            },
+            {
+                "name": "Spike Clearing Bundle",
+                "mechanisms": [
+                    "Reduce viral protein load",
+                    "Support mitochondrial function",
+                    "Improve detox pathways"
+                ],
+                "dosage": "Follow bundle guidebook",
+                "duration": "30 days",
+                "links": ["https://www.medrxiv.org/"],
+                "tags": ["bundle", "mitochondria", "detox"],
+                "bundle_product": "Spike Clearance Bundle"
+            }
         ]
-        sample_treatments = [prepare_for_mongo(it) for it in sample_treatments]
+        sample_treatments = [prepare_for_mongo(Treatment(**t).model_dump()) for t in sample_treatments]
         await db.treatments.insert_many(sample_treatments)
+
+# -------------------------------------------------
+# File-based Resources Loader (auto-render)
+# -------------------------------------------------
+PUBLIC_RESOURCES_DIR = ROOT_DIR.parent / 'frontend' / 'public' / 'resources' / 'bioweapons'
+
+
+def infer_kind_from_ext(ext: str) -> str:
+    e = (ext or '').lower().strip('.')
+    if e in ['pdf']: return 'pdf'
+    if e in ['mp4', 'webm']: return 'video'
+    if e in ['m4a', 'mp3', 'wav']: return 'audio'
+    return 'json'
+
+
+def load_resources_from_folder() -> List[ResourceItem]:
+    items: List[ResourceItem] = []
+    meta_file = PUBLIC_RESOURCES_DIR / 'metadata.json'
+    if meta_file.exists():
+        try:
+            with open(meta_file, 'r', encoding='utf-8') as f:
+                meta = json.load(f)
+            for m in meta.get('resources', []):
+                url = m.get('url')
+                filename = m.get('filename') or (url.split('/')[-1] if url else None)
+                ext = m.get('ext') or (filename.split('.')[-1] if filename and '.' in filename else None)
+                kind = m.get('kind') or infer_kind_from_ext(ext or '')
+                uploaded_at = m.get('uploaded_at')
+                try:
+                    uploaded_dt = datetime.fromisoformat(uploaded_at) if uploaded_at else datetime.now(timezone.utc)
+                except Exception:
+                    uploaded_dt = datetime.now(timezone.utc)
+                item = ResourceItem(
+                    title=m.get('title') or filename or 'Untitled',
+                    filename=filename,
+                    ext=ext,
+                    url=url or '',
+                    kind=kind,
+                    tags=m.get('tags', []),
+                    description=m.get('description'),
+                    uploaded_at=uploaded_dt
+                )
+                items.append(item)
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"Failed to parse metadata.json: {e}")
+    return items
 
 # -------------------------------------------------
 # Routes
@@ -258,10 +313,20 @@ async def get_research(tag: Optional[str] = Query(default=None), sort_by: str = 
 
 @api.get("/resources", response_model=List[ResourceItem])
 async def get_resources(tag: Optional[str] = Query(default=None)):
-    await ensure_seed()
-    q = {"tags": {"$regex": tag, "$options": "i"}} if tag else {}
-    items = await db.resources.find(q).sort("uploaded_at", -1).to_list(200)
-    return [ResourceItem(**parse_from_mongo(it)) for it in items]
+    # 1) Try folder-based metadata (authoritative for MVP auto-render)
+    folder_items = load_resources_from_folder()
+    if folder_items:
+        data = folder_items
+    else:
+        # 2) Fallback to DB seed
+        await ensure_seed()
+        docs = await db.resources.find({}).sort("uploaded_at", -1).to_list(200)
+        data = [ResourceItem(**parse_from_mongo(it)) for it in docs]
+    # Filter by tag if provided
+    if tag:
+        t = tag.lower()
+        data = [r for r in data if any(t in (x.lower()) for x in (r.tags or []))]
+    return data
 
 @api.get("/treatments", response_model=List[Treatment])
 async def get_treatments(tag: Optional[str] = Query(default=None)):
