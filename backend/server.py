@@ -355,6 +355,19 @@ def _write_markdown_atomic(path: Path, content: str) -> None:
         logging.getLogger(__name__).warning(f"Failed to write markdown {path}: {e}")
 
 
+def _unique_knowledge_path(slug: str, suffix: str = "") -> Path:
+    base = f"{slug}{suffix}.md"
+    p = KNOWLEDGE_DIR / base
+    if not p.exists():
+        return p
+    i = 2
+    while True:
+        cand = KNOWLEDGE_DIR / f"{slug}{suffix}-{i}.md"
+        if not cand.exists():
+            return cand
+        i += 1
+
+
 def chunkr_ingest_pdf_bg(file_path_str: str, title: str, tags: List[str], description: Optional[str]) -> Optional[str]:
     if not CHUNKR_API_KEY:
         return None
