@@ -109,6 +109,16 @@
       ],
       "description": "Test async video upload workflow",
       "uploaded_at": "2025-08-23T03:52:25.662436+00:00"
+    },
+    {
+      "title": "Test PDF Document",
+      "filename": "test-document.pdf",
+      "ext": "pdf",
+      "url": "/resources/bioweapons/test-document.pdf",
+      "kind": "pdf",
+      "tags": [],
+      "description": "Testing async upload with proper PDF",
+      "uploaded_at": "2025-08-23T04:02:42.308151+00:00"
     }
   ]
 }
