@@ -2,17 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 import { BrowserRouter, Routes, Route, Link, useSearchParams } from "react-router-dom";
 import axios from "axios";
-import { Button } from "./components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 import { Input } from "./components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
 import { Toaster } from "./components/ui/toaster";
 import { toast } from "./hooks/use-toast";
 import { Calendar } from "./components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "./components/ui/dialog";
-import { CalendarIcon, ShoppingCart, Filter, ExternalLink, FileText, Video, AudioLines, Download } from "lucide-react";
+import { CalendarIcon, ShoppingCart, ExternalLink, FileText, Video, AudioLines, Download } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -34,6 +32,7 @@ function Header() {
               <Link to="/"><button className="pill">Home</button></Link>
               <Link to="/research" data-testid="nav-research"><button className="pill" style={{background:'#0ea5a5'}}>Research</button></Link>
               <Link to="/resources" data-testid="nav-resources"><button className="pill" style={{background:'#10b981'}}>Resources</button></Link>
+              <Link to="/treatments" data-testid="nav-treatments"><button className="pill" style={{background:'#475569'}}>Treatments</button></Link>
               <Link to="/shop" data-testid="nav-shop"><button className="pill" style={{background:'#0284c7'}}>Shop</button></Link>
             </div>
           </div>
@@ -93,7 +92,7 @@ function Home(){
                     <button className="pill" aria-label="Pick a date"><CalendarIcon size={16} style={{marginRight:8}}/>Date</button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={undefined} /* demo only */ />
+                    <Calendar mode="single" selected={undefined} />
                   </PopoverContent>
                 </Popover>
               </div>
@@ -193,7 +192,7 @@ function ResourceCard({r}){
         <div className="card-actions">
           <Dialog>
             <DialogTrigger asChild>
-              <button className="pill"><EyeIcon /> Preview</button>
+              <button className="pill"><ExternalLink size={16} style={{marginRight:8}}/> Preview</button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
@@ -219,10 +218,6 @@ function ResourceCard({r}){
       </CardContent>
     </Card>
   )
-}
-
-function EyeIcon(){
-  return <ExternalLink size={16} style={{marginRight:8}}/>;
 }
 
 function Resources(){
@@ -253,6 +248,65 @@ function Resources(){
             </CardContent>
           </Card>
           {items.map(r => <ResourceCard key={r.id} r={r} />)}
+        </div>
+      </div>
+      <Toaster />
+    </>
+  )
+}
+
+function Treatments(){
+  const api = useApi();
+  const [items, setItems] = useState([]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tag = searchParams.get('tag') || '';
+
+  useEffect(() => { (async () => {
+    try {
+      const {data} = await api.get(`/treatments${tag ? `?tag=${encodeURIComponent(tag)}`: ''}`);
+      setItems(data);
+    } catch (e) {
+      toast({title:'Load failed', description:'Could not load treatments'});
+    }
+  })(); }, [tag]);
+
+  return (
+    <>
+      <Header />
+      <div className="container">
+        <div className="grid">
+          <Card className="card" style={{gridColumn:'span 12'}}>
+            <CardContent>
+              <div style={{display:'flex', gap:12, alignItems:'center', flexWrap:'wrap'}}>
+                <Input placeholder="Filter by tag (e.g., NAC)" value={tag} onChange={e => setSearchParams({tag: e.target.value})} style={{maxWidth:260}} />
+              </div>
+            </CardContent>
+          </Card>
+
+          {items.map(t => (
+            <Card key={t.id} className="card fade-in">
+              <CardHeader>
+                <CardTitle className="card-title">{t.name}</CardTitle>
+                <div className="card-meta">{(t.tags||[]).map(x => <span key={x} className="tag">{x}</span>)}</div>
+              </CardHeader>
+              <CardContent>
+                <div style={{marginBottom:8}}>
+                  <strong>Mechanisms:</strong>
+                  <ul style={{marginTop:8, paddingLeft:18}}>
+                    {(t.mechanisms||[]).map((m,i) => <li key={i} style={{marginBottom:4}}>{m}</li>)}
+                  </ul>
+                </div>
+                {t.dosage && <p style={{marginBottom:4}}><strong>Dosage:</strong> {t.dosage}</p>}
+                {t.duration && <p style={{marginBottom:8}}><strong>Duration:</strong> {t.duration}</p>}
+                <div style={{display:'flex', gap:12, flexWrap:'wrap'}}>
+                  {(t.links||[]).map((l,i) => <a key={i} className="pill" href={l} target="_blank" rel="noreferrer">Study <ExternalLink size={16} style={{marginLeft:8}}/></a>)}
+                  {t.bundle_product && (
+                    <Link to="/shop" className="pill">View Bundle <ShoppingCart size={16} style={{marginLeft:8}}/></Link>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       </div>
       <Toaster />
@@ -348,6 +402,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/research" element={<Research />} />
           <Route path="/resources" element={<Resources />} />
+          <Route path="/treatments" element={<Treatments />} />
           <Route path="/shop" element={<Shop />} />
         </Routes>
       </BrowserRouter>

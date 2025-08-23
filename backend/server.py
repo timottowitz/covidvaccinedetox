@@ -102,6 +102,17 @@ class ResourceItem(BaseModel):
     description: Optional[str] = None
     uploaded_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+class Treatment(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    mechanisms: List[str] = []
+    dosage: Optional[str] = None
+    duration: Optional[str] = None
+    links: List[str] = []
+    tags: List[str] = []
+    bundle_product: Optional[str] = None  # ShopRocket product label/id
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 # -------------------------------------------------
 # Seed Data (for MVP demo)
 # -------------------------------------------------
@@ -179,6 +190,30 @@ async def ensure_seed():
         sample_resources = [prepare_for_mongo(it) for it in sample_resources]
         await db.resources.insert_many(sample_resources)
 
+    treatments_count = await db.treatments.count_documents({})
+    if treatments_count == 0:
+        sample_treatments = [
+            Treatment(
+                name='NAC + Magnesium Protocol',
+                mechanisms=['Supports glutathione synthesis','Reduces oxidative stress','Potentially mitigates spike-induced ROS'],
+                dosage='NAC 600mg twice daily; Magnesium glycinate 200-400mg daily',
+                duration='4-8 weeks, reassess',
+                links=['https://pubmed.ncbi.nlm.nih.gov/32707342/'],
+                tags=['NAC','magnesium','antioxidant']
+            ).model_dump(),
+            Treatment(
+                name='Spike Clearing Bundle',
+                mechanisms=['Reduce viral protein load','Support mitochondrial function','Improve detox pathways'],
+                dosage='Follow bundle guidebook',
+                duration='30 days',
+                links=['https://www.medrxiv.org/'],
+                tags=['bundle','mitochondria','detox'],
+                bundle_product='Spike Clearance Bundle'
+            ).model_dump(),
+        ]
+        sample_treatments = [prepare_for_mongo(it) for it in sample_treatments]
+        await db.treatments.insert_many(sample_treatments)
+
 # -------------------------------------------------
 # Routes
 # -------------------------------------------------
@@ -227,6 +262,13 @@ async def get_resources(tag: Optional[str] = Query(default=None)):
     q = {"tags": {"$regex": tag, "$options": "i"}} if tag else {}
     items = await db.resources.find(q).sort("uploaded_at", -1).to_list(200)
     return [ResourceItem(**parse_from_mongo(it)) for it in items]
+
+@api.get("/treatments", response_model=List[Treatment])
+async def get_treatments(tag: Optional[str] = Query(default=None)):
+    await ensure_seed()
+    q = {"tags": {"$regex": tag, "$options": "i"}} if tag else {}
+    items = await db.treatments.find(q).sort("created_at", -1).to_list(100)
+    return [Treatment(**parse_from_mongo(it)) for it in items]
 
 # bind router
 app.include_router(api)
