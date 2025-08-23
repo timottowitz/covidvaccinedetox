@@ -185,7 +185,84 @@ function Research(){
   )
 }
 
-// Resources, Treatments, Media and Shop components remain as previously defined in earlier step
+function Media(){
+  const api = useApi();
+  const [media, setMedia] = useState([]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tag = searchParams.get('tag') || '';
+  const source = searchParams.get('source') || '';
+
+  useEffect(() => { (async () => {
+    try {
+      let query = '';
+      if (tag) query += `tag=${encodeURIComponent(tag)}&`;
+      if (source) query += `source=${encodeURIComponent(source)}&`;
+      if (query) query = '?' + query.slice(0, -1);
+      
+      const {data} = await api.get(`/media${query}`);
+      setMedia(data);
+    } catch (e) {
+      toast({title:'Load failed', description:'Could not load media items'});
+    }
+  })(); }, [tag, source]);
+
+  return (
+    <>
+      <Header />
+      <div className="container">
+        <div className="grid">
+          <Card className="card" style={{gridColumn:'span 12'}}>
+            <CardContent>
+              <div style={{display:'flex', gap:12, alignItems:'center', flexWrap:'wrap'}}>
+                <Input placeholder="Filter by tag (e.g., spike)" value={tag} onChange={e => setSearchParams({tag: e.target.value, source})} style={{maxWidth:260}} />
+                <Select value={source} onValueChange={(v) => setSearchParams({tag, source: v})}>
+                  <SelectTrigger style={{width:200}}>
+                    <SelectValue placeholder="All Sources" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">All Sources</SelectItem>
+                    <SelectItem value="YouTube">YouTube</SelectItem>
+                    <SelectItem value="Vimeo">Vimeo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          {media.map(item => (
+            <Card key={item.id} className="card fade-in">
+              <CardHeader>
+                <CardTitle className="card-title">{item.title}</CardTitle>
+                <div className="card-meta">{item.source} • {new Date(item.published_at).toLocaleDateString()}</div>
+              </CardHeader>
+              <CardContent>
+                <div style={{marginBottom:12}}>
+                  <AspectRatio ratio={16/9}>
+                    <iframe 
+                      src={item.url} 
+                      title={item.title}
+                      frameBorder="0" 
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                      allowFullScreen
+                      style={{width:'100%', height:'100%', borderRadius:8}}
+                    />
+                  </AspectRatio>
+                </div>
+                {item.description && <p style={{marginBottom:8}}>{item.description}</p>}
+                <div style={{marginBottom:12}}>
+                  {(item.tags||[]).map(t => <span key={t} className="tag">#{t}</span>)}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+      <Toaster />
+    </>
+  )
+}
+
+// Resources, Treatments, and Shop components remain as previously defined in earlier step
 // (kept for brevity in this patch, they are present in file)
 
 function App() {
