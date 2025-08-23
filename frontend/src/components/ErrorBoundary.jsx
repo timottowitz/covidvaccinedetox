@@ -5,18 +5,20 @@ export default class ErrorBoundary extends React.Component {
     super(props);
     this.state = { hasError: false, message: '' };
   }
+  // Do not set error state here; we filter in componentDidCatch to avoid false positives from extensions
   static getDerivedStateFromError(error){
-    return { hasError: true, message: String(error && error.message ? error.message : 'Something went wrong') };
+    return null;
   }
   componentDidCatch(error, info){
-    // Ignore noisy browser extensions (e.g., MetaMask) that throw global errors
-    const msg = String(error && error.message || '').toLowerCase();
+    // Ignore noisy browser extensions (e.g., MetaMask)
+    const msg = String((error && error.message) || '').toLowerCase();
     if (msg.includes('metamask')) {
-      // swallow
+      // swallow extension error
       return;
     }
-    // You can add logging here if needed
-    // console.error('App error:', error, info);
+    // Set fallback only for real app errors
+    this.setState({ hasError: true, message: msg || 'Something went wrong' });
+    // Optional: console.error('App error:', error, info);
   }
   render(){
     if (this.state.hasError){
