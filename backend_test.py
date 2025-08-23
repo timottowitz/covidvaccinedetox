@@ -239,6 +239,61 @@ class BackendAPITester:
             self.log_result("Treatments Endpoint", False, f"Request failed: {str(e)}")
         return False
 
+    def test_research_sync_endpoint(self):
+        """Test GET /api/research/sync - NEW FEATURE"""
+        try:
+            response = requests.get(f"{self.api_url}/research/sync", timeout=15)
+            if response.status_code == 200:
+                data = response.json()
+                # Check for required keys: added, updated, parsed (all should be numbers)
+                required_keys = ['added', 'updated', 'parsed']
+                if all(key in data for key in required_keys):
+                    # Verify all values are numbers
+                    if all(isinstance(data[key], int) for key in required_keys):
+                        self.log_result("Research Sync", True, f"Added: {data['added']}, Updated: {data['updated']}, Parsed: {data['parsed']}")
+                        return True
+                    else:
+                        self.log_result("Research Sync", False, f"Values not all integers: {data}")
+                else:
+                    missing = [k for k in required_keys if k not in data]
+                    self.log_result("Research Sync", False, f"Missing keys: {missing}")
+            else:
+                self.log_result("Research Sync", False, f"Expected 200, got {response.status_code}")
+        except Exception as e:
+            self.log_result("Research Sync", False, f"Request failed: {str(e)}")
+        return False
+
+    def test_media_endpoint(self):
+        """Test GET /api/media - NEW FEATURE"""
+        try:
+            response = requests.get(f"{self.api_url}/media", timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                if isinstance(data, list) and len(data) > 0:
+                    # Check if media items have expected structure
+                    first_item = data[0]
+                    required_fields = ['id', 'title', 'source', 'url', 'tags', 'published_at']
+                    if all(field in first_item for field in required_fields):
+                        # Check for at least one YouTube and one Vimeo item
+                        youtube_items = [item for item in data if 'youtube' in item.get('source', '').lower()]
+                        vimeo_items = [item for item in data if 'vimeo' in item.get('source', '').lower()]
+                        
+                        if len(youtube_items) >= 1 and len(vimeo_items) >= 1:
+                            self.log_result("Media Endpoint", True, f"Returned {len(data)} media items (YouTube: {len(youtube_items)}, Vimeo: {len(vimeo_items)})")
+                            return True
+                        else:
+                            self.log_result("Media Endpoint", False, f"Missing YouTube ({len(youtube_items)}) or Vimeo ({len(vimeo_items)}) items")
+                    else:
+                        missing = [f for f in required_fields if f not in first_item]
+                        self.log_result("Media Endpoint", False, f"Missing fields: {missing}")
+                else:
+                    self.log_result("Media Endpoint", False, "Expected non-empty array")
+            else:
+                self.log_result("Media Endpoint", False, f"Expected 200, got {response.status_code}")
+        except Exception as e:
+            self.log_result("Media Endpoint", False, f"Request failed: {str(e)}")
+        return False
+
     def test_status_endpoints(self):
         """Test POST and GET /api/status"""
         try:
