@@ -1188,86 +1188,59 @@ async def get_resources(tag: Optional[str] = Query(default=None)):
     return data
 
 
-@api.post("/resources/upload", response_model=ResourceItem)
+@api.post("/resources/upload", response_model=TaskResponse, status_code=202)
 async def upload_resource(
     file: UploadFile = File(...),
     title: Optional[str] = Form(default=None),
     tags: Optional[str] = Form(default=None),
     description: Optional[str] = Form(default=None),
-    background_tasks: BackgroundTasks = BackgroundTasks()
+    idempotency_key: Optional[str] = Header(default=None, alias="X-Idempotency-Key")
 ):
     try:
-        fname = Path(file.filename).name
-        dest = PUBLIC_RESOURCES_DIR / fname
-        content = await file.read()
-        with open(dest, 'wb') as f:
-            f.write(content)
-        ext = dest.suffix.lstrip('.')
-        kind = infer_kind_from_ext(ext)
-        url = f"/resources/bioweapons/{fname}"
-        meta = load_metadata_file()
-        resources = meta.get('resources', [])
-        now_iso = datetime.now(timezone.utc).isoformat()
-        updated = False
-        for r in resources:
-            if r.get('filename') == fname or r.get('url') == url:
-                if title: r['title'] = title
-                if description is not None: r['description'] = description
-                if tags is not None:
-                    r['tags'] = [t.strip() for t in tags.split(',') if t.strip()]
-                r['ext'] = ext
-                r['kind'] = kind
-                r['uploaded_at'] = now_iso
-                updated = True
-                break
-        if not updated:
-            resources.append({
-                'title': title or fname,
-                'filename': fname,
-                'ext': ext,
-                'url': url,
-                'kind': kind,
-                'tags': [t.strip() for t in (tags or '').split(',') if t.strip()],
-                'description': description,
-                'uploaded_at': now_iso
-            })
-        meta['resources'] = resources
-        save_metadata_file(meta)
-        # Attempt thumbnail generation synchronously
-        thumb_url = None
-        if kind in ('pdf','video'):
-            temp_res = ResourceItem(title=title or fname, filename=fname, ext=ext, url=url, kind=kind, tags=[t.strip() for t in (tags or '').split(',') if t.strip()], description=description, uploaded_at=datetime.fromisoformat(now_iso))
-            thumb_url = ensure_thumbnail_for_resource(temp_res, prefer_time_sec=1.0)
-        # Trigger background knowledge ingestion per user rules
-        knowledge_job_id = None
-        knowledge_job_type = None
-        try:
-            if background_tasks is not None:
-                if kind == 'pdf':
-                    knowledge_job_id = str(uuid.uuid4())
-                    knowledge_job_type = 'chunkr_pdf'
-                    background_tasks.add_task(chunkr_ingest_pdf_bg, dest.as_posix(), title or fname, [t.strip() for t in (tags or '').split(',') if t.strip()], description, fname, url)
-                elif kind == 'video':
-                    knowledge_job_id = str(uuid.uuid4())
-                    knowledge_job_type = 'gemini_video'
-                    background_tasks.add_task(gemini_summarize_video_bg, dest.as_posix(), title or fname, fname, url)
-        except Exception as e:
-            logging.getLogger(__name__).warning(f"Failed to enqueue background ingestion: {e}")
-        item = ResourceItem(
-            title=title or fname,
-            filename=fname,
-            ext=ext,
-            url=url,
-            kind=kind,
-            tags=[t.strip() for t in (tags or '').split(',') if t.strip()],
-            description=description,
-            uploaded_at=datetime.fromisoformat(now_iso),
-            thumbnail_url=thumb_url,
-            knowledge_url=None,
-            knowledge_job_id=knowledge_job_id,
-            knowledge_job_type=knowledge_job_type
+        # Generate idempotency key if not provided
+        if not idempotency_key:
+            idempotency_key = str(uuid.uuid4())
+        
+        # Check for existing task with same idempotency key
+        existing_task = find_task_by_idempotency_key(idempotency_key)
+        if existing_task:
+            return TaskResponse(
+                task_id=existing_task.task_id,
+                idempotency_key=existing_task.idempotency_key,
+                status=existing_task.status,
+                message="Task already exists for this idempotency key"
+            )
+        
+        # Validate file upload
+        is_valid, error_message = validate_file_upload(file)
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=error_message)
+        
+        # Read file content
+        file_content = await file.read()
+        
+        # Create task
+        task_info = create_task(idempotency_key, file.filename)
+        
+        # Start background processing
+        asyncio.create_task(process_upload_task(
+            task_info.task_id, 
+            file_content, 
+            file.filename,
+            title,
+            tags,
+            description
+        ))
+        
+        return TaskResponse(
+            task_id=task_info.task_id,
+            idempotency_key=task_info.idempotency_key,
+            status=TaskStatus.PENDING,
+            message="Upload task created successfully"
         )
-        return item
+        
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
 
