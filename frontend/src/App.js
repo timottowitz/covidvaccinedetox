@@ -552,19 +552,98 @@ function ResourceCard({ resource }) {
 }
 
 function Media() {
+  const [videos] = useState([
+    {
+      id: 'FgKpMEowsh0',
+      title: 'COVID-19 Vaccine Discussion',
+      description: 'Important discussion about COVID-19 vaccines and their implications.',
+      url: 'https://www.youtube.com/watch?v=FgKpMEowsh0'
+    }
+    // Additional videos can be added here
+  ]);
+
+  const getYouTubeEmbedUrl = (videoId) => {
+    return `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`;
+  };
+
+  const extractVideoId = (url) => {
+    const regex = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/;
+    const match = url.match(regex);
+    return match ? match[1] : null;
+  };
+
   return (
     <div className="App">
       <Header />
       <div className="container">
-        <div className="grid">
-          <Card className="card" style={{gridColumn:'span 12'}}>
-            <CardHeader>
-              <CardTitle className="card-title">Media</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p>Media page content goes here.</p>
-            </CardContent>
-          </Card>
+        <div style={{ maxWidth: '800px', margin: '0 auto', padding: '20px 0' }}>
+          <div style={{ marginBottom: '30px', textAlign: 'center' }}>
+            <h1 className="card-title" style={{ fontSize: '2rem', marginBottom: '10px' }}>Media</h1>
+            <p style={{ color: '#64748b', fontSize: '1.1rem' }}>
+              Curated video content on mRNA vaccines, spike protein research, and treatments
+            </p>
+          </div>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+            {videos.map((video, index) => (
+              <Card key={video.id} className="card" style={{ overflow: 'hidden' }}>
+                <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
+                  <iframe
+                    src={getYouTubeEmbedUrl(video.id)}
+                    title={video.title}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: '100%',
+                      border: 'none'
+                    }}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+                <CardContent style={{ padding: '20px' }}>
+                  <h3 style={{ margin: '0 0 10px 0', fontSize: '1.25rem', fontWeight: '600' }}>
+                    {video.title}
+                  </h3>
+                  <p style={{ color: '#64748b', margin: '0 0 15px 0', lineHeight: '1.5' }}>
+                    {video.description}
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <a 
+                      href={video.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        color: '#3b82f6',
+                        textDecoration: 'none',
+                        fontSize: '0.875rem',
+                        fontWeight: '500'
+                      }}
+                    >
+                      Watch on YouTube →
+                    </a>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+            
+            {/* Future videos placeholder */}
+            <Card className="card" style={{ 
+              border: '2px dashed #d1d5db', 
+              backgroundColor: '#f9fafb',
+              textAlign: 'center',
+              padding: '40px 20px'
+            }}>
+              <CardContent>
+                <h3 style={{ margin: '0 0 10px 0', color: '#6b7280' }}>More Videos Coming Soon</h3>
+                <p style={{ color: '#9ca3af', margin: 0 }}>
+                  We're continuously adding new educational content about mRNA vaccines and treatments.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </div>
