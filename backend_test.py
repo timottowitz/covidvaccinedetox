@@ -573,25 +573,28 @@ startxref
             print("⚠️  Some backend tests failed. Check details above.")
             return False
 
-    def run_incremental_tests_only(self):
-        """Run only the new feature tests requested"""
-        print("🚀 Starting Incremental Backend API Tests")
+    def run_thumbnail_tests(self):
+        """Run thumbnail-specific tests as requested in review"""
+        print("🚀 Starting Thumbnail Generation Tests")
         print(f"Testing against: {self.base_url}")
         print("=" * 50)
 
-        # Run only the new tests
-        self.test_research_sync_endpoint()
-        self.test_media_endpoint()
+        # Run thumbnail-specific tests
+        self.test_health_endpoint()  # Verify /api/health returns ok
+        self.test_resources_thumbnail_generation()  # Test GET /api/resources with thumbnail generation
+        self.test_upload_with_thumbnail_generation()  # Test POST /api/resources/upload
+        self.test_external_url_thumbnail_handling()  # Test edge cases with external URLs
+        self.test_cors_and_route_prefixes()  # Confirm no changes to base route prefixes and CORS
 
         # Print summary
         print("\n" + "=" * 50)
-        print(f"📊 Incremental Test Results: {self.tests_passed}/{self.tests_run} tests passed")
+        print(f"📊 Thumbnail Test Results: {self.tests_passed}/{self.tests_run} tests passed")
         
         if self.tests_passed == self.tests_run:
-            print("🎉 All incremental tests passed!")
+            print("🎉 All thumbnail tests passed!")
             return True
         else:
-            print("⚠️  Some incremental tests failed. Check details above.")
+            print("⚠️  Some thumbnail tests failed. Check details above.")
             return False
 
 def main():
