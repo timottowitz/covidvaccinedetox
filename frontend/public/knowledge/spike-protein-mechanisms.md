@@ -1,10 +1,9 @@
 ---
-title: Spike Protein Mechanisms in COVID-19
+title: Spike Protein Toxicity
 type: research_article
 date: 2024-01-15
 tags: [spike-protein, covid-19, mechanisms]
 summary: "Comprehensive analysis of spike protein interactions and cellular effects"
-resource_id: 5d38e8e9-189b-44ec-b2ed-012caad06031
 ---
 
 ## Key Points
