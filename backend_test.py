@@ -380,7 +380,8 @@ class BackendAPITester:
 def main():
     """Main test runner"""
     tester = BackendAPITester()
-    success = tester.run_all_tests()
+    # Run only incremental tests as requested
+    success = tester.run_incremental_tests_only()
     return 0 if success else 1
 
 if __name__ == "__main__":
