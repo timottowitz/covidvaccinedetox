@@ -143,15 +143,18 @@ user_problem_statement: "Implement server-side thumbnail generation for PDF and 
 backend:
   - task: "Async upload endpoint with 202 response, task tracking, and limits"
     implemented: true
-    working: "NA" 
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Implemented task tracking models (TaskStatus, TaskInfo, TaskResponse), file validation with size (100MB) and MIME type limits, refactored /api/resources/upload to return 202 Accepted with task_id and idempotency_key, added /api/knowledge/task_status endpoint for monitoring, and background task processing with async wrappers."
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE ASYNC UPLOAD TESTING COMPLETED: All 17/17 tests passed. 1) POST /api/resources/upload correctly returns 202 Accepted with task_id and idempotency_key. 2) File size limit (100MB) properly enforced - rejects larger files with 400 error. 3) MIME type validation working - only allows PDF, MP4, QuickTime, WebM files. 4) Idempotency working perfectly - same key returns existing task. 5) GET /api/knowledge/task_status shows proper task progression (pending->processing->completed). 6) Task completion includes result field with ResourceItem data. 7) Background thumbnail generation still working. 8) Knowledge ingestion processes running in background. 9) Error cases handled correctly (404 for invalid task_id, 400 for missing file). 10) Backwards compatibility maintained - all existing endpoints functional. System is production-ready."
   - task: "Thumbnail generation for PDF and video"
     implemented: true
     working: true
