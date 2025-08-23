@@ -83,7 +83,7 @@ def extract_keywords(q: str, top_k: int = 6) -> List[str]:
     return [w for w, _ in sorted(freqs.items(), key=lambda kv: kv[1], reverse=True)[:top_k]]
 
 # -------------------------------------------------
-# Env &amp; DB
+# Env & DB
 # -------------------------------------------------
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -126,7 +126,7 @@ def parse_from_mongo(item: dict) -> dict:
     return d
 
 # -------------------------------------------------
-# App &amp; Router
+# App & Router
 # -------------------------------------------------
 app = FastAPI()
 api = APIRouter(prefix="/api")
@@ -318,7 +318,7 @@ async def ensure_seed():
     if media_count == 0:
         sample_media = [
             MediaItem(title='Spike Protein Lecture Clip',description='Overview of spike-induced pathways (demo).',source='YouTube',url='https://www.youtube.com/embed/dQw4w9WgXcQ',tags=['spike','lecture']).model_dump(),
-            MediaItem(title='Mitochondria &amp; Energy',description='Mitochondrial function overview (demo).',source='Vimeo',url='https://player.vimeo.com/video/76979871',tags=['mitochondria','energy']).model_dump(),
+            MediaItem(title='Mitochondria & Energy',description='Mitochondrial function overview (demo).',source='Vimeo',url='https://player.vimeo.com/video/76979871',tags=['mitochondria','energy']).model_dump(),
         ]
         sample_media = [prepare_for_mongo(it) for it in sample_media]
         await db.media.insert_many(sample_media)
@@ -590,7 +590,7 @@ def load_resources_from_folder_and_meta() -> List[ResourceItem]:
 # -------------------------------------------------
 DEFAULT_FEEDS = [
     "https://pubmed.ncbi.nlm.nih.gov/rss/search/1G1RkJ2-example-spike-mitochondria/",
-    "https://connect.medrxiv.org/relate/feed/181?custom=1&amp;query=spike%20protein",
+    "https://connect.medrxiv.org/relate/feed/181?custom=1&query=spike%20protein",
     "https://www.biorxiv.org/rss/subject/neuroscience.xml"
 ]
 
