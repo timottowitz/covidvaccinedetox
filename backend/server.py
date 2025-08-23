@@ -16,6 +16,9 @@ import requests
 import feedparser
 import threading
 import time
+import asyncio
+from enum import Enum
+import magic
 
 # -------------------------------------------------
 # Text Processing Constants and Functions
