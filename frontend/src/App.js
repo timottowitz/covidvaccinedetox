@@ -167,6 +167,173 @@ function Research() {
 }
 
 function Resources() {
+  const api = useApi();
+  const [resources, setResources] = useState([]);
+  const [filteredResources, setFilteredResources] = useState([]);
+  const [filter, setFilter] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [uploadTasks, setUploadTasks] = useState(new Map());
+
+  // Load resources from backend
+  useEffect(() => {
+    loadResources();
+  }, []);
+
+  // Filter resources when filter changes
+  useEffect(() => {
+    if (!filter.trim()) {
+      setFilteredResources(resources);
+    } else {
+      const filtered = resources.filter(r => 
+        r.title?.toLowerCase().includes(filter.toLowerCase()) ||
+        r.description?.toLowerCase().includes(filter.toLowerCase()) ||
+        r.tags?.some(tag => tag.toLowerCase().includes(filter.toLowerCase()))
+      );
+      setFilteredResources(filtered);
+    }
+  }, [resources, filter]);
+
+  const loadResources = async () => {
+    try {
+      setLoading(true);
+      const { data } = await api.get('/resources');
+      setResources(data.resources || []);
+    } catch (error) {
+      console.error('Failed to load resources:', error);
+      toast({title: 'Error', description: 'Failed to load resources'});
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['application/pdf', 'video/mp4', 'video/quicktime', 'video/webm'];
+    if (!allowedTypes.includes(file.type)) {
+      toast({title: 'Invalid file type', description: 'Only PDF, MP4, QuickTime, and WebM files are allowed'});
+      return;
+    }
+
+    // Validate file size (100MB)
+    const maxSize = 100 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast({title: 'File too large', description: 'File size must be less than 100MB'});
+      return;
+    }
+
+    try {
+      setUploading(true);
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('title', file.name);
+      formData.append('description', `Uploaded ${file.type} file`);
+
+      // Generate idempotency key
+      const idempotencyKey = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      const { data } = await api.post('/resources/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'X-Idempotency-Key': idempotencyKey
+        }
+      });
+
+      if (data.task_id) {
+        // Track upload task
+        const newTask = {
+          task_id: data.task_id,
+          filename: file.name,
+          status: data.status,
+          idempotency_key: data.idempotency_key
+        };
+        setUploadTasks(prev => new Map(prev.set(data.task_id, newTask)));
+        
+        toast({title: 'Upload started', description: `Processing ${file.name}...`});
+        
+        // Monitor task status
+        monitorTask(data.task_id);
+      }
+    } catch (error) {
+      console.error('Upload failed:', error);
+      const message = error.response?.data?.detail || 'Upload failed';
+      toast({title: 'Upload failed', description: message});
+    } finally {
+      setUploading(false);
+      // Reset file input
+      event.target.value = '';
+    }
+  };
+
+  const monitorTask = async (taskId) => {
+    const maxAttempts = 60; // 2 minutes max
+    let attempts = 0;
+    
+    const checkStatus = async () => {
+      try {
+        const { data } = await api.get(`/knowledge/task_status?task_id=${taskId}`);
+        
+        setUploadTasks(prev => {
+          const newMap = new Map(prev);
+          const task = newMap.get(taskId);
+          if (task) {
+            task.status = data.status;
+            if (data.result) {
+              task.result = data.result;
+            }
+            if (data.error_message) {
+              task.error_message = data.error_message;
+            }
+            newMap.set(taskId, task);
+          }
+          return newMap;
+        });
+
+        if (data.status === 'completed') {
+          toast({title: 'Upload completed', description: `${data.result?.title || 'File'} processed successfully`});
+          // Reload resources to show the new one
+          loadResources();
+          // Remove completed task after delay
+          setTimeout(() => {
+            setUploadTasks(prev => {
+              const newMap = new Map(prev);
+              newMap.delete(taskId);
+              return newMap;
+            });
+          }, 3000);
+          return;
+        } else if (data.status === 'failed') {
+          toast({title: 'Upload failed', description: data.error_message || 'Processing failed'});
+          // Remove failed task after delay
+          setTimeout(() => {
+            setUploadTasks(prev => {
+              const newMap = new Map(prev);
+              newMap.delete(taskId);
+              return newMap;
+            });
+          }, 5000);
+          return;
+        }
+
+        // Continue monitoring if still processing
+        attempts++;
+        if (attempts < maxAttempts && (data.status === 'pending' || data.status === 'processing')) {
+          setTimeout(checkStatus, 2000); // Check every 2 seconds
+        } else if (attempts >= maxAttempts) {
+          toast({title: 'Upload timeout', description: 'Upload is taking too long'});
+        }
+      } catch (error) {
+        console.error('Failed to check task status:', error);
+      }
+    };
+
+    setTimeout(checkStatus, 1000); // Initial delay
+  };
+
   return (
     <div className="App">
       <Header />
@@ -177,22 +344,210 @@ function Resources() {
               <CardTitle className="card-title">Resources</CardTitle>
             </CardHeader>
             <CardContent>
-              <Input placeholder="Filter resources..." />
-              <div style={{marginTop: 16}}>
-                <Card className="card">
-                  <CardHeader>
-                    <CardTitle className="card-title">Add resources</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p>Add new resources here.</p>
-                  </CardContent>
-                </Card>
+              <div style={{marginBottom: 16}}>
+                <Input 
+                  placeholder="Filter resources..." 
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                />
               </div>
+              
+              {/* Upload Status Display */}
+              {uploadTasks.size > 0 && (
+                <div style={{marginBottom: 16}}>
+                  {Array.from(uploadTasks.values()).map((task) => (
+                    <Card key={task.task_id} className="card" style={{marginBottom: 8}}>
+                      <CardContent style={{padding: 12}}>
+                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                          <span style={{fontSize: 14}}>{task.filename}</span>
+                          <span style={{
+                            fontSize: 12, 
+                            padding: '2px 8px', 
+                            borderRadius: 4,
+                            backgroundColor: task.status === 'completed' ? '#22c55e' : 
+                                           task.status === 'failed' ? '#ef4444' : '#f59e0b',
+                            color: 'white'
+                          }}>
+                            {task.status}
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {/* Upload Card */}
+              <Card className="card" style={{marginBottom: 16}}>
+                <CardHeader>
+                  <CardTitle className="card-title">Upload Resource</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div>
+                    <input
+                      type="file"
+                      accept=".pdf,.mp4,.mov,.webm"
+                      onChange={handleFileUpload}
+                      disabled={uploading}
+                      style={{
+                        width: '100%',
+                        padding: '8px',
+                        border: '2px dashed #ccc',
+                        borderRadius: '8px',
+                        textAlign: 'center',
+                        cursor: uploading ? 'not-allowed' : 'pointer'
+                      }}
+                    />
+                    <p style={{fontSize: 12, color: '#666', marginTop: 8}}>
+                      Supports: PDF, MP4, QuickTime, WebM files (max 100MB)
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Resources Grid */}
+              {loading ? (
+                <div style={{textAlign: 'center', padding: 32}}>
+                  <p>Loading resources...</p>
+                </div>
+              ) : filteredResources.length === 0 ? (
+                <div style={{textAlign: 'center', padding: 32}}>
+                  <p>No resources found. Upload your first resource above!</p>
+                </div>
+              ) : (
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16}}>
+                  {filteredResources.map((resource) => (
+                    <ResourceCard key={resource.id || resource.url} resource={resource} />
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
       </div>
     </div>
+  );
+}
+
+function ResourceCard({ resource }) {
+  const thumbnailUrl = resource.thumbnail_url ? `${BACKEND_URL}${resource.thumbnail_url}` : null;
+  const knowledgeUrl = resource.knowledge_url ? `/knowledge` : null;
+  
+  const getKindIcon = (kind) => {
+    switch(kind) {
+      case 'pdf': return '📄';
+      case 'video': return '🎥';
+      default: return '📁';
+    }
+  };
+
+  const getKindColor = (kind) => {
+    switch(kind) {
+      case 'pdf': return '#ef4444';
+      case 'video': return '#3b82f6';
+      default: return '#6b7280';
+    }
+  };
+
+  return (
+    <Card className="card" style={{overflow: 'hidden'}}>
+      {thumbnailUrl && (
+        <AspectRatio ratio={16/9}>
+          <img 
+            src={thumbnailUrl} 
+            alt={resource.title}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover'
+            }}
+            onError={(e) => {
+              e.target.style.display = 'none';
+            }}
+          />
+        </AspectRatio>
+      )}
+      <CardContent style={{padding: 16}}>
+        <div style={{display: 'flex', alignItems: 'center', marginBottom: 8}}>
+          <span style={{fontSize: 18, marginRight: 8}}>{getKindIcon(resource.kind)}</span>
+          <span style={{
+            fontSize: 12,
+            padding: '2px 6px',
+            backgroundColor: getKindColor(resource.kind),
+            color: 'white',
+            borderRadius: 4,
+            textTransform: 'uppercase'
+          }}>
+            {resource.kind}
+          </span>
+        </div>
+        
+        <h3 style={{margin: '0 0 8px 0', fontSize: 16, fontWeight: 600}}>
+          {resource.title}
+        </h3>
+        
+        {resource.description && (
+          <p style={{fontSize: 14, color: '#666', marginBottom: 8, lineHeight: 1.4}}>
+            {resource.description.length > 100 
+              ? `${resource.description.substring(0, 100)}...` 
+              : resource.description
+            }
+          </p>
+        )}
+        
+        {resource.tags && resource.tags.length > 0 && (
+          <div style={{marginBottom: 8}}>
+            {resource.tags.slice(0, 3).map((tag, idx) => (
+              <span key={idx} style={{
+                fontSize: 11,
+                padding: '2px 6px',
+                backgroundColor: '#f3f4f6',
+                color: '#374151',
+                borderRadius: 3,
+                marginRight: 4,
+                marginBottom: 4,
+                display: 'inline-block'
+              }}>
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+        
+        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: '#666'}}>
+          <span>
+            {resource.uploaded_at ? new Date(resource.uploaded_at).toLocaleDateString() : 'Unknown date'}
+          </span>
+          
+          <div style={{display: 'flex', gap: 8}}>
+            {resource.url && (
+              <a 
+                href={`${BACKEND_URL}${resource.url}`} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                style={{color: '#3b82f6', textDecoration: 'none'}}
+              >
+                View
+              </a>
+            )}
+            {knowledgeUrl && (
+              <Link 
+                to={knowledgeUrl}
+                style={{color: '#10b981', textDecoration: 'none'}}
+              >
+                Knowledge
+              </Link>
+            )}
+          </div>
+        </div>
+        
+        {resource.knowledge_job_type && !resource.knowledge_url && (
+          <div style={{marginTop: 8, fontSize: 11, color: '#f59e0b'}}>
+            Processing: {resource.knowledge_job_type}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
