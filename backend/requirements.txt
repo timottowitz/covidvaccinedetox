@@ -27,3 +27,6 @@ feedparser>=6.0.11
 pymupdf>=1.24.2
 opencv-python-headless>=4.9.0.80
 Pillow>=10.3.0
+chunkr-ai>=0.1.2
+google-genai>=0.4.0
+aiofiles>=24.1.0
