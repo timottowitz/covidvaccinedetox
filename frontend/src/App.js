@@ -182,19 +182,35 @@ function Resources() {
     loadResources();
   }, []);
 
-  // Filter resources when filter changes
+  // Enhanced filtering with type, tag, and text filters
   useEffect(() => {
-    if (!filter.trim()) {
-      setFilteredResources(resources);
-    } else {
-      const filtered = resources.filter(r => 
+    let filtered = resources;
+    
+    // Type filter
+    if (typeFilter !== "all") {
+      filtered = filtered.filter(r => r.kind?.toLowerCase() === typeFilter.toLowerCase());
+    }
+    
+    // Tag filter  
+    if (tagFilter !== "all") {
+      filtered = filtered.filter(r => 
+        r.tags?.some(tag => tag.toLowerCase().includes(tagFilter.toLowerCase()))
+      );
+    }
+    
+    // Text filter
+    if (filter.trim()) {
+      filtered = filtered.filter(r => 
         r.title?.toLowerCase().includes(filter.toLowerCase()) ||
         r.description?.toLowerCase().includes(filter.toLowerCase()) ||
-        r.tags?.some(tag => tag.toLowerCase().includes(filter.toLowerCase()))
+        r.tags?.some(tag => tag.toLowerCase().includes(filter.toLowerCase())) ||
+        r.meta?.title?.toLowerCase().includes(filter.toLowerCase()) ||
+        r.meta?.summary?.toLowerCase().includes(filter.toLowerCase())
       );
-      setFilteredResources(filtered);
     }
-  }, [resources, filter]);
+    
+    setFilteredResources(filtered);
+  }, [resources, filter, typeFilter, tagFilter]);
 
   const loadResources = async () => {
     try {
