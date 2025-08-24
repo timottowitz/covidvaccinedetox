@@ -684,29 +684,75 @@ function ResourceCard({ resource }) {
           </div>
         )}
         
+        {/* Knowledge Processing Status */}
+        {resource.knowledge_job_type && (
+          <div style={{marginBottom: 12, padding: 8, backgroundColor: '#f8fafc', borderRadius: 6, border: '1px solid #e2e8f0'}}>
+            <div style={{display: 'flex', alignItems: 'center', gap: 6, fontSize: 12}}>
+              {resource.knowledge_url ? (
+                <>
+                  <div style={{
+                    width: 8, 
+                    height: 8, 
+                    borderRadius: '50%', 
+                    backgroundColor: '#22c55e'
+                  }} />
+                  <span style={{color: '#22c55e', fontWeight: 500}}>Knowledge Ready</span>
+                </>
+              ) : (
+                <>
+                  <div style={{
+                    width: 8, 
+                    height: 8, 
+                    borderRadius: '50%', 
+                    backgroundColor: '#f59e0b',
+                    animation: 'pulse 2s infinite'
+                  }} />
+                  <span style={{color: '#f59e0b', fontWeight: 500}}>Processing: {resource.knowledge_job_type}</span>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+        
         <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: '#666'}}>
           <span>
             {resource.uploaded_at ? new Date(resource.uploaded_at).toLocaleDateString() : 'Unknown date'}
           </span>
           
-          <div style={{display: 'flex', gap: 8}}>
+          <div style={{display: 'flex', gap: 6}}>
             {resource.url && (
-              <a 
-                href={`${BACKEND_URL}${resource.url}`} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                style={{color: '#3b82f6', textDecoration: 'none'}}
+              <Button
+                variant="outline"
+                size="sm"
+                asChild
+                style={{fontSize: 11, height: 28, padding: '0 8px'}}
               >
-                View
-              </a>
+                <a 
+                  href={`${BACKEND_URL}${resource.url}`} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  style={{color: '#3b82f6', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4}}
+                >
+                  <ExternalLink size={12} />
+                  View
+                </a>
+              </Button>
             )}
-            {knowledgeUrl && (
-              <Link 
-                to={knowledgeUrl}
-                style={{color: '#10b981', textDecoration: 'none'}}
+            {resource.knowledge_url && (
+              <Button
+                variant="outline"
+                size="sm"
+                asChild
+                style={{fontSize: 11, height: 28, padding: '0 8px'}}
               >
-                Knowledge
-              </Link>
+                <Link 
+                  to={`/knowledge?open=${encodeURIComponent(resource.knowledge_url.split('/').pop())}`}
+                  style={{color: '#10b981', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4}}
+                >
+                  <Eye size={12} />
+                  Knowledge
+                </Link>
+              </Button>
             )}
           </div>
         </div>
