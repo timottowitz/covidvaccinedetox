@@ -756,12 +756,7 @@ function ResourceCard({ resource }) {
             )}
           </div>
         </div>
-        
-        {resource.knowledge_job_type && !resource.knowledge_url && (
-          <div style={{marginTop: 8, fontSize: 11, color: '#f59e0b'}}>
-            Processing: {resource.knowledge_job_type}
-          </div>
-        )}
+
       </CardContent>
     </Card>
   );
