@@ -1691,6 +1691,313 @@ startxref
             print("⚠️  Some CI security tests failed. Check details above.")
             return False
 
+    def test_ux_polish_upload_monitoring(self):
+        """Test UX Polish - Enhanced Upload Task Monitoring with 5-second polling"""
+        try:
+            # Create a small test PDF for upload monitoring
+            pdf_content = b"""%PDF-1.4
+1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj
+2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj
+3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>endobj
+xref
+0 4
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+trailer<</Size 4/Root 1 0 R>>
+startxref
+180
+%%EOF"""
+
+            # Test 1: POST /api/resources/upload returns 202 with task_id
+            files = {'file': ('ux_polish_test.pdf', pdf_content, 'application/pdf')}
+            data = {
+                'title': 'UX Polish Upload Test',
+                'tags': 'ux,polish,monitoring',
+                'description': 'Testing enhanced upload monitoring'
+            }
+            timestamp = str(int(time.time()))
+            headers = {'X-Idempotency-Key': f'ux-polish-test-{timestamp}'}
+            
+            response = requests.post(f"{self.api_url}/resources/upload", files=files, data=data, headers=headers, timeout=30)
+            
+            if response.status_code == 202:
+                result = response.json()
+                if 'task_id' in result and 'idempotency_key' in result and result.get('status') == 'pending':
+                    task_id = result['task_id']
+                    self.log_result("UX Polish - Upload Returns 202 with Task ID", True, f"Task ID: {task_id}")
+                    
+                    # Test 2: GET /api/knowledge/task_status shows proper status progression with 5-second polling
+                    polling_results = []
+                    max_polls = 12  # 60 seconds max (5 seconds * 12)
+                    
+                    for poll_count in range(max_polls):
+                        time.sleep(5)  # 5-second polling interval as specified
+                        
+                        status_response = requests.get(f"{self.api_url}/knowledge/task_status?task_id={task_id}", timeout=10)
+                        
+                        if status_response.status_code == 200:
+                            status_data = status_response.json()
+                            current_status = status_data.get('status')
+                            polling_results.append({
+                                'poll': poll_count + 1,
+                                'status': current_status,
+                                'timestamp': datetime.now().isoformat()
+                            })
+                            
+                            if current_status == 'completed':
+                                # Test 3: Completed tasks show proper status and results
+                                if 'result' in status_data and status_data['result']:
+                                    result_item = status_data['result']
+                                    has_required_fields = all(field in result_item for field in ['title', 'kind', 'url', 'uploaded_at'])
+                                    
+                                    if has_required_fields:
+                                        self.log_result("UX Polish - Task Status Progression", True, 
+                                                      f"Status progressed through {len(polling_results)} polls, completed with result")
+                                        self.log_result("UX Polish - Completed Task Results", True, 
+                                                      f"Result contains: {result_item.get('title')} ({result_item.get('kind')})")
+                                        return True
+                                    else:
+                                        self.log_result("UX Polish - Completed Task Results", False, 
+                                                      f"Result missing required fields: {result_item}")
+                                        return False
+                                else:
+                                    self.log_result("UX Polish - Completed Task Results", False, 
+                                                  "Completed task missing result field")
+                                    return False
+                                    
+                            elif current_status == 'failed':
+                                error_msg = status_data.get('error_message', 'Unknown error')
+                                self.log_result("UX Polish - Task Status Progression", False, 
+                                              f"Task failed after {len(polling_results)} polls: {error_msg}")
+                                return False
+                                
+                        else:
+                            self.log_result("UX Polish - Task Status Polling", False, 
+                                          f"Status endpoint returned {status_response.status_code}")
+                            return False
+                    
+                    # If we reach here, task didn't complete within polling window
+                    final_status = polling_results[-1]['status'] if polling_results else 'unknown'
+                    self.log_result("UX Polish - Task Status Progression", False, 
+                                  f"Task didn't complete within {max_polls * 5} seconds, final status: {final_status}")
+                    
+                else:
+                    self.log_result("UX Polish - Upload Returns 202 with Task ID", False, 
+                                  f"Missing required fields in 202 response: {result}")
+            else:
+                self.log_result("UX Polish - Upload Returns 202 with Task ID", False, 
+                              f"Expected 202, got {response.status_code}: {response.text}")
+                
+        except Exception as e:
+            self.log_result("UX Polish - Enhanced Upload Monitoring", False, f"Test failed: {str(e)}")
+        return False
+
+    def test_ux_polish_api_filtering_support(self):
+        """Test that backend API responses include proper fields for frontend filtering"""
+        try:
+            # Test GET /api/resources for filtering support
+            response = requests.get(f"{self.api_url}/resources", timeout=10)
+            
+            if response.status_code == 200:
+                resources = response.json()
+                
+                if len(resources) > 0:
+                    # Check that resources have fields needed for advanced filtering
+                    first_resource = resources[0]
+                    filtering_fields = ['kind', 'tags', 'title', 'uploaded_at']
+                    
+                    missing_fields = [field for field in filtering_fields if field not in first_resource]
+                    
+                    if not missing_fields:
+                        # Check for variety in resource types and tags for filtering
+                        resource_kinds = set(r.get('kind') for r in resources)
+                        all_tags = []
+                        for r in resources:
+                            all_tags.extend(r.get('tags', []))
+                        unique_tags = set(all_tags)
+                        
+                        # Check for knowledge status indicators
+                        resources_with_knowledge = [r for r in resources if r.get('knowledge_url')]
+                        resources_with_processing = [r for r in resources if r.get('knowledge_job_id')]
+                        
+                        details = f"Resource kinds: {len(resource_kinds)} ({list(resource_kinds)}), "
+                        details += f"Unique tags: {len(unique_tags)}, "
+                        details += f"With knowledge: {len(resources_with_knowledge)}, "
+                        details += f"Processing jobs: {len(resources_with_processing)}"
+                        
+                        self.log_result("UX Polish - API Filtering Support", True, details)
+                        return True
+                    else:
+                        self.log_result("UX Polish - API Filtering Support", False, 
+                                      f"Missing filtering fields: {missing_fields}")
+                else:
+                    self.log_result("UX Polish - API Filtering Support", False, "No resources found to test filtering")
+            else:
+                self.log_result("UX Polish - API Filtering Support", False, 
+                              f"Resources endpoint failed: {response.status_code}")
+                
+        except Exception as e:
+            self.log_result("UX Polish - API Filtering Support", False, f"Test failed: {str(e)}")
+        return False
+
+    def test_ux_polish_error_handling(self):
+        """Test UX Polish - Enhanced Error Handling"""
+        try:
+            # Test 1: Invalid task_id handling
+            response = requests.get(f"{self.api_url}/knowledge/task_status?task_id=invalid-ux-polish-test", timeout=10)
+            
+            if response.status_code == 404:
+                error_data = response.json()
+                if 'detail' in error_data and 'not found' in error_data['detail'].lower():
+                    self.log_result("UX Polish - Invalid Task ID Error", True, 
+                                  f"Proper 404 response: {error_data['detail']}")
+                else:
+                    self.log_result("UX Polish - Invalid Task ID Error", False, 
+                                  f"Wrong error format: {error_data}")
+            else:
+                self.log_result("UX Polish - Invalid Task ID Error", False, 
+                              f"Expected 404, got {response.status_code}")
+
+            # Test 2: File size validation (100MB limit)
+            large_content = b"x" * (101 * 1024 * 1024)  # 101MB
+            files = {'file': ('ux_polish_large.pdf', large_content, 'application/pdf')}
+            
+            response = requests.post(f"{self.api_url}/resources/upload", files=files, timeout=30)
+            
+            if response.status_code == 400:
+                error_data = response.json()
+                if 'detail' in error_data and 'size' in error_data['detail'].lower():
+                    self.log_result("UX Polish - File Size Validation", True, 
+                                  f"Proper size limit error: {error_data['detail']}")
+                else:
+                    self.log_result("UX Polish - File Size Validation", False, 
+                                  f"Wrong error message: {error_data}")
+            else:
+                self.log_result("UX Polish - File Size Validation", False, 
+                              f"Expected 400, got {response.status_code}")
+
+            # Test 3: File type validation
+            invalid_content = b"This is not a valid PDF or video file"
+            files = {'file': ('ux_polish_invalid.txt', invalid_content, 'text/plain')}
+            
+            response = requests.post(f"{self.api_url}/resources/upload", files=files, timeout=30)
+            
+            if response.status_code == 400:
+                error_data = response.json()
+                if 'detail' in error_data and ('type' in error_data['detail'].lower() or 'allowed' in error_data['detail'].lower()):
+                    self.log_result("UX Polish - File Type Validation", True, 
+                                  f"Proper type validation error: {error_data['detail']}")
+                    return True
+                else:
+                    self.log_result("UX Polish - File Type Validation", False, 
+                                  f"Wrong error message: {error_data}")
+            else:
+                self.log_result("UX Polish - File Type Validation", False, 
+                              f"Expected 400, got {response.status_code}")
+                
+        except Exception as e:
+            self.log_result("UX Polish - Enhanced Error Handling", False, f"Test failed: {str(e)}")
+        return False
+
+    def test_ux_polish_knowledge_integration(self):
+        """Test UX Polish - Knowledge Integration with Open Knowledge functionality"""
+        try:
+            # Test knowledge status endpoint for Open Knowledge buttons
+            response = requests.get(f"{self.api_url}/knowledge/status", timeout=10)
+            
+            if response.status_code == 200:
+                status_data = response.json()
+                
+                if 'files' in status_data and isinstance(status_data['files'], list):
+                    knowledge_files = status_data['files']
+                    
+                    # Test that knowledge files have proper structure for frontend
+                    if len(knowledge_files) > 0:
+                        first_file = knowledge_files[0]
+                        required_fields = ['name', 'path']
+                        
+                        has_required_fields = all(field in first_file for field in required_fields)
+                        
+                        if has_required_fields:
+                            self.log_result("UX Polish - Knowledge Status Structure", True, 
+                                          f"Found {len(knowledge_files)} knowledge files with proper structure")
+                        else:
+                            missing = [f for f in required_fields if f not in first_file]
+                            self.log_result("UX Polish - Knowledge Status Structure", False, 
+                                          f"Missing fields in knowledge files: {missing}")
+                    else:
+                        self.log_result("UX Polish - Knowledge Status Structure", True, 
+                                      "No knowledge files found (acceptable for empty state)")
+                        
+                    # Test reconciliation for linking resources to knowledge
+                    reconcile_response = requests.post(f"{self.api_url}/knowledge/reconcile", timeout=15)
+                    
+                    if reconcile_response.status_code == 200:
+                        reconcile_data = reconcile_response.json()
+                        
+                        # Check for proper reconciliation structure
+                        required_categories = ['linked', 'updated', 'skipped', 'conflicts']
+                        has_all_categories = all(cat in reconcile_data for cat in required_categories)
+                        
+                        if has_all_categories:
+                            total_actions = sum(len(reconcile_data[cat]) for cat in required_categories)
+                            self.log_result("UX Polish - Knowledge Reconciliation", True, 
+                                          f"Reconciliation completed with {total_actions} total actions")
+                            return True
+                        else:
+                            missing_cats = [cat for cat in required_categories if cat not in reconcile_data]
+                            self.log_result("UX Polish - Knowledge Reconciliation", False, 
+                                          f"Missing reconciliation categories: {missing_cats}")
+                    else:
+                        self.log_result("UX Polish - Knowledge Reconciliation", False, 
+                                      f"Reconcile endpoint failed: {reconcile_response.status_code}")
+                else:
+                    self.log_result("UX Polish - Knowledge Status Structure", False, 
+                                  f"Invalid knowledge status response: {status_data}")
+            else:
+                self.log_result("UX Polish - Knowledge Status Structure", False, 
+                              f"Knowledge status endpoint failed: {response.status_code}")
+                
+        except Exception as e:
+            self.log_result("UX Polish - Knowledge Integration", False, f"Test failed: {str(e)}")
+        return False
+
+    def run_ux_polish_tests(self):
+        """Run UX Polish Enhancement Tests as requested in review"""
+        print("🎨 Starting UX Polish Enhancement Tests")
+        print(f"Testing against: {self.base_url}")
+        print("=" * 50)
+
+        # UX Polish Enhancement Tests
+        print("\n🚀 ENHANCED UPLOAD TASK MONITORING")
+        print("-" * 40)
+        self.test_ux_polish_upload_monitoring()
+        
+        print("\n🔍 API FILTERING SUPPORT")
+        print("-" * 40)
+        self.test_ux_polish_api_filtering_support()
+        
+        print("\n⚠️  ENHANCED ERROR HANDLING")
+        print("-" * 40)
+        self.test_ux_polish_error_handling()
+        
+        print("\n📚 KNOWLEDGE INTEGRATION")
+        print("-" * 40)
+        self.test_ux_polish_knowledge_integration()
+
+        # Print summary
+        print("\n" + "=" * 50)
+        print(f"📊 UX Polish Test Results: {self.tests_passed}/{self.tests_run} tests passed")
+        
+        if self.tests_passed == self.tests_run:
+            print("🎉 All UX Polish tests passed!")
+            return True
+        else:
+            print("⚠️  Some UX Polish tests failed. Check details above.")
+            return False
+
     def run_all_tests(self):
         """Run all backend API tests"""
         print("🚀 Starting Backend API Tests")
