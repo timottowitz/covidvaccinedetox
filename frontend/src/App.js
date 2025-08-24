@@ -473,25 +473,74 @@ function Resources() {
                 </div>
               </div>
               
-              {/* Upload Status Display */}
+              {/* Enhanced Upload Status Display */}
               {uploadTasks.size > 0 && (
                 <div style={{marginBottom: 16}}>
                   {Array.from(uploadTasks.values()).map((task) => (
                     <Card key={task.task_id} className="card" style={{marginBottom: 8}}>
-                      <CardContent style={{padding: 12}}>
+                      <CardContent style={{padding: 16}}>
                         <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                          <span style={{fontSize: 14}}>{task.filename}</span>
-                          <span style={{
-                            fontSize: 12, 
-                            padding: '2px 8px', 
-                            borderRadius: 4,
-                            backgroundColor: task.status === 'completed' ? '#22c55e' : 
-                                           task.status === 'failed' ? '#ef4444' : '#f59e0b',
-                            color: 'white'
-                          }}>
-                            {task.status}
-                          </span>
+                          <div style={{flex: 1}}>
+                            <div style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4}}>
+                              <span style={{fontSize: 14, fontWeight: 500}}>{task.filename}</span>
+                              <Badge 
+                                style={{
+                                  backgroundColor: task.status === 'completed' ? '#22c55e' : 
+                                                 task.status === 'failed' ? '#ef4444' : '#f59e0b',
+                                  color: 'white',
+                                  fontSize: 11
+                                }}
+                              >
+                                {task.status === 'processing' ? 'Processing...' : task.status}
+                              </Badge>
+                            </div>
+                            {task.stage && (
+                              <div style={{fontSize: 12, color: '#64748b'}}>
+                                {task.stage}
+                              </div>
+                            )}
+                            {task.error_message && (
+                              <div style={{fontSize: 12, color: '#ef4444', marginTop: 4}}>
+                                Error: {task.error_message}
+                              </div>
+                            )}
+                          </div>
+                          
+                          {task.status === 'completed' && task.result?.knowledge_url && (
+                            <Button 
+                              size="sm" 
+                              onClick={() => openKnowledge(task.result)}
+                              style={{display: 'flex', alignItems: 'center', gap: 6}}
+                            >
+                              <Eye size={14} />
+                              Open Knowledge
+                            </Button>
+                          )}
                         </div>
+                        
+                        {/* Progress bar for processing tasks */}
+                        {(task.status === 'processing' || task.status === 'pending') && (
+                          <div style={{marginTop: 8}}>
+                            <div style={{
+                              width: '100%',
+                              height: 4,
+                              backgroundColor: '#f1f5f9',
+                              borderRadius: 2,
+                              overflow: 'hidden'
+                            }}>
+                              <div 
+                                style={{
+                                  height: '100%',
+                                  backgroundColor: '#3b82f6',
+                                  borderRadius: 2,
+                                  width: task.progress ? `${task.progress}%` : '100%',
+                                  animation: !task.progress ? 'pulse 2s infinite' : undefined,
+                                  transition: 'width 0.3s ease'
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   ))}
