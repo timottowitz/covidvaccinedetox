@@ -270,8 +270,9 @@ function Resources() {
   };
 
   const monitorTask = async (taskId) => {
-    const maxAttempts = 60; // 2 minutes max
+    const maxAttempts = 120; // 10 minutes max with 5s intervals
     let attempts = 0;
+    let pollInterval = null;
     
     const checkStatus = async () => {
       try {
@@ -282,6 +283,8 @@ function Resources() {
           const task = newMap.get(taskId);
           if (task) {
             task.status = data.status;
+            task.progress = data.progress || task.progress;
+            task.stage = data.stage || task.stage;
             if (data.result) {
               task.result = data.result;
             }
@@ -294,44 +297,81 @@ function Resources() {
         });
 
         if (data.status === 'completed') {
-          toast({title: 'Upload completed', description: `${data.result?.title || 'File'} processed successfully`});
+          if (pollInterval) clearInterval(pollInterval);
+          
+          toast({
+            title: 'Upload completed', 
+            description: `${data.result?.title || 'File'} processed successfully`
+          });
+          
           // Reload resources to show the new one
           loadResources();
-          // Remove completed task after delay
+          
+          // Keep completed task visible for 10 seconds before removing
           setTimeout(() => {
             setUploadTasks(prev => {
               const newMap = new Map(prev);
               newMap.delete(taskId);
               return newMap;
             });
-          }, 3000);
+          }, 10000);
           return;
         } else if (data.status === 'failed') {
-          toast({title: 'Upload failed', description: data.error_message || 'Processing failed'});
-          // Remove failed task after delay
+          if (pollInterval) clearInterval(pollInterval);
+          
+          toast({
+            title: 'Upload failed', 
+            description: data.error_message || 'Processing failed'
+          });
+          
+          // Keep failed task visible for 15 seconds for user to see error
           setTimeout(() => {
             setUploadTasks(prev => {
               const newMap = new Map(prev);
               newMap.delete(taskId);
               return newMap;
             });
-          }, 5000);
+          }, 15000);
           return;
         }
 
         // Continue monitoring if still processing
         attempts++;
-        if (attempts < maxAttempts && (data.status === 'pending' || data.status === 'processing')) {
-          setTimeout(checkStatus, 2000); // Check every 2 seconds
-        } else if (attempts >= maxAttempts) {
-          toast({title: 'Upload timeout', description: 'Upload is taking too long'});
+        if (attempts >= maxAttempts) {
+          if (pollInterval) clearInterval(pollInterval);
+          toast({
+            title: 'Upload timeout', 
+            description: 'Upload is taking longer than expected. Please check back later.'
+          });
         }
       } catch (error) {
         console.error('Failed to check task status:', error);
+        attempts++;
+        
+        if (attempts >= 5) { // Stop after 5 consecutive failures
+          if (pollInterval) clearInterval(pollInterval);
+          toast({
+            title: 'Monitoring error', 
+            description: 'Unable to check upload status. Please refresh the page.'
+          });
+        }
       }
     };
 
-    setTimeout(checkStatus, 1000); // Initial delay
+    // Initial check after 1 second
+    setTimeout(checkStatus, 1000);
+    
+    // Then poll every 5 seconds
+    setTimeout(() => {
+      pollInterval = setInterval(checkStatus, 5000);
+    }, 1000);
+  };
+
+  const openKnowledge = (resource) => {
+    if (resource.knowledge_url) {
+      // Navigate to knowledge page with the specific file
+      window.location.href = `/knowledge?open=${encodeURIComponent(resource.knowledge_url.split('/').pop())}`;
+    }
   };
 
   return (
