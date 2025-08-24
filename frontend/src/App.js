@@ -402,12 +402,75 @@ function Resources() {
               <CardTitle className="card-title">Resources</CardTitle>
             </CardHeader>
             <CardContent>
+              {/* Enhanced Filtering */}
               <div style={{marginBottom: 16}}>
-                <Input 
-                  placeholder="Filter resources..." 
-                  value={filter}
-                  onChange={(e) => setFilter(e.target.value)}
-                />
+                <div style={{display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12}}>
+                  <div style={{flex: 1, minWidth: '250px', position: 'relative'}}>
+                    <Search size={16} style={{position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#64748b'}} />
+                    <Input 
+                      placeholder="Search titles, descriptions, tags..." 
+                      value={filter}
+                      onChange={(e) => setFilter(e.target.value)}
+                      style={{paddingLeft: 36}}
+                    />
+                  </div>
+                  
+                  <Select value={typeFilter} onValueChange={setTypeFilter}>
+                    <SelectTrigger style={{width: 140}}>
+                      <Filter size={16} style={{marginRight: 6}} />
+                      <SelectValue placeholder="Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="pdf">
+                        <div style={{display: 'flex', alignItems: 'center', gap: 6}}>
+                          <FileText size={14} />
+                          PDF
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="video">
+                        <div style={{display: 'flex', alignItems: 'center', gap: 6}}>
+                          <Video size={14} />
+                          Video
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  <Select value={tagFilter} onValueChange={setTagFilter}>
+                    <SelectTrigger style={{width: 160}}>
+                      <SelectValue placeholder="Tags" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Tags</SelectItem>
+                      {/* Get unique tags from resources */}
+                      {Array.from(new Set(resources.flatMap(r => r.tags || []))).sort().map(tag => (
+                        <SelectItem key={tag} value={tag}>{tag}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* Filter Results Summary */}
+                <div style={{display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.875rem', color: '#64748b'}}>
+                  <span>
+                    Showing {filteredResources.length} of {resources.length} resources
+                  </span>
+                  {(filter || typeFilter !== 'all' || tagFilter !== 'all') && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => {
+                        setFilter('');
+                        setTypeFilter('all');
+                        setTagFilter('all');
+                      }}
+                      style={{fontSize: '0.875rem', height: 'auto', padding: '2px 8px'}}
+                    >
+                      Clear filters
+                    </Button>
+                  )}
+                </div>
               </div>
               
               {/* Upload Status Display */}
