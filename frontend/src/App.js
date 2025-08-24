@@ -13,7 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover
 import { Button } from "./components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "./components/ui/dialog";
 import { AspectRatio } from "./components/ui/aspect-ratio";
-import { CalendarIcon, ShoppingCart, ExternalLink } from "lucide-react";
+import { CalendarIcon, ShoppingCart, ExternalLink, Search, Filter, FileText, Video, Eye } from "lucide-react";
 import KnowledgeList from "./components/KnowledgeList";
 import ErrorBoundary from "./components/ErrorBoundary";
 
