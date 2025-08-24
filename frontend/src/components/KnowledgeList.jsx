@@ -62,6 +62,33 @@ export default function KnowledgeList(){
       setMd('# Failed to load');
     }
   };
+  
+  // Enhanced copy functions with visual feedback
+  const handleCopy = async (text, type) => {
+    const key = `${selected.filename}-${type}`;
+    
+    const result = await copyWithFeedback(text, {
+      successMessage: `${type} copied!`,
+      errorMessage: `Failed to copy ${type.toLowerCase()}`
+    });
+    
+    if (result.success) {
+      // Show success state
+      setCopyStates(prev => ({ ...prev, [key]: 'success' }));
+      
+      // Reset after 2 seconds
+      setTimeout(() => {
+        setCopyStates(prev => ({ ...prev, [key]: null }));
+      }, 2000);
+    } else {
+      // Show error state briefly
+      setCopyStates(prev => ({ ...prev, [key]: 'error' }));
+      
+      setTimeout(() => {
+        setCopyStates(prev => ({ ...prev, [key]: null }));
+      }, 3000);
+    }
+  };
 
   useEffect(()=>{ load(); },[]);
 
