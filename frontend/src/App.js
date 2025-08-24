@@ -171,6 +171,8 @@ function Resources() {
   const [resources, setResources] = useState([]);
   const [filteredResources, setFilteredResources] = useState([]);
   const [filter, setFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [tagFilter, setTagFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadTasks, setUploadTasks] = useState(new Map());
