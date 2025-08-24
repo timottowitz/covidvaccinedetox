@@ -16,6 +16,7 @@ export default function KnowledgeList(){
   const [selected, setSelected] = useState(null);
   const [md, setMd] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
+  const [copyStates, setCopyStates] = useState({});  // Track copy button states
 
   const load = async () => {
     setLoading(true);
